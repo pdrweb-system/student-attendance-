@@ -54,7 +54,7 @@ function summaryFlex(rows: Row[], now: Date) {
       ? [cell(r.name, 3, {}), cell(String(r.total), 2), cell(String(r.present), 2),
          cell(String(r.absent), 2), cell(r.pct == null ? "-" : String(r.pct), 2)]
       : [cell(r.name, 3, { color: "#999999" }), cell(String(r.total), 2, { color: "#999999" }),
-         cell("ยังไม่ลง", 5, { color: "#c0392b" })],
+         cell("ยังไม่ลง", 6, { color: "#c0392b" })],
   }));
   return {
     type: "flex", altText: "สรุปสถิติมาเรียนวันนี้",
