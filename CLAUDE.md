@@ -162,3 +162,7 @@ CLAUDE.md
 ## 10. อัปเดตหลัง brief
 - ตัดช่อง "ชื่อผู้กรอก" และ "PIN ครู" ออกจากหน้าครูและ `submit-attendance` (ไม่ใช้ `TEACHER_PIN` อีกต่อไป); ป้องกันด้วย rate limit + กติกาเวลา/ระบบเปิด-ปิดฝั่ง DB เท่านั้น
 - แยกหน้าครู (`index.html`, `summary.html`) ออกจากหน้าแอดมิน (`admin.html`) ไม่มีลิงก์ข้ามกัน
+- หน้าครู: กดบันทึก → SweetAlert2 loading → "บันทึกเสร็จสิ้น" → ปิดหน้าอัตโนมัติ
+  (ในแอป LINE ปิดได้จริงเมื่อเปิดผ่าน LIFF: ตั้ง `LIFF_ID` ทั้งใน GitHub Variables และ Supabase secrets;
+  ถ้าปิดไม่ได้จะแสดงหน้าจอ "บันทึกเสร็จสิ้น — ปิดหน้านี้ได้เลย")
+- LINE: "สรุปสถิติ" และ "เช็คสถิติ" เป็น Flex ทั้งคู่ (`supabase/functions/line-webhook/flex.ts`, ขนาด bubble `mega` ให้พอดีจอมือถือ)

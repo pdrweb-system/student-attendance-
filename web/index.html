@@ -4,6 +4,7 @@
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>ลงสถิติมาเรียน</title>
 <link rel="stylesheet" href="style.css">
+<script src="https://cdn.jsdelivr.net/npm/sweetalert2@11.26.25/dist/sweetalert2.all.min.js"></script>
 </head>
 <body>
 <header><h1>ลงสถิติมาเรียนประจำวัน</h1><small>โรงเรียนวัดปรีดาราม (มณีศิริวรรณ)</small></header>
@@ -25,10 +26,48 @@
 </main>
 <script type="module">
 import { sb, FUNCTIONS_URL, $, toast, getStatus, statusBanner, nav, fmtTime } from "./common.js";
-import { SUPABASE_ANON_KEY as KEY } from "./config.js";
+import * as cfg from "./config.js";
+const KEY = cfg.SUPABASE_ANON_KEY;
+const GREEN = "#1a5e1a";
+const Swal = window.Swal; // SweetAlert2 from <head>; falls back to toasts if it didn't load
 $("#nav").innerHTML = nav("index");
 
-let rows = [], status = null;
+let rows = [], status = null, timer;
+
+// Optional LIFF app (config LIFF_ID): inside LINE it is the only way a page can close itself.
+const liffReady = cfg.LIFF_ID ? loadLiff(cfg.LIFF_ID) : Promise.resolve(null);
+async function loadLiff(liffId) {
+  try {
+    await new Promise((ok, fail) => {
+      const s = document.createElement("script");
+      s.src = "https://static.line-scdn.net/liff/edge/2/sdk.js";
+      s.onload = ok; s.onerror = fail;
+      document.head.append(s);
+    });
+    await window.liff.init({ liffId });
+    return window.liff;
+  } catch (e) {
+    console.warn("LIFF init failed", e);
+    return null;
+  }
+}
+
+// After a successful save: close the page. Inside LINE that needs LIFF; other browsers only let a
+// script close a tab it opened. If the page is still open, show a "done" screen instead of the form.
+async function closePage(summary) {
+  const liff = await liffReady;
+  if (liff?.isInClient()) return liff.closeWindow();
+  window.close();
+  setTimeout(() => showDone(summary), 300);
+}
+function showDone(summary) {
+  clearInterval(timer);
+  $("main").innerHTML = `<div class="card done">
+    <div class="done-icon">✅</div><h2>บันทึกเสร็จสิ้น</h2><p>${summary}</p>
+    <p class="muted">ปิดหน้านี้ได้เลย</p>
+    <p><button id="again" class="secondary" type="button">ลงสถิติชั้นอื่น</button></p></div>`;
+  $("#again").addEventListener("click", () => location.reload());
+}
 
 async function refresh() {
   const cid = Number($("#cls").value) || null;
@@ -60,24 +99,41 @@ $("#cls").addEventListener("change", () => { $("#male").value = ""; $("#female")
 $("#form").addEventListener("submit", async (e) => {
   e.preventDefault();
   const btn = $("#submit"); btn.disabled = true;
+  const cls = $("#cls").selectedOptions[0]?.textContent ?? "";
+  const male = Number($("#male").value), female = Number($("#female").value);
+  Swal?.fire({
+    title: "กำลังบันทึก…", text: `ชั้น ${cls}`, allowOutsideClick: false, allowEscapeKey: false,
+    showConfirmButton: false, didOpen: () => Swal.showLoading(),
+  });
+  let out;
   try {
     const res = await fetch(`${FUNCTIONS_URL}/submit-attendance`, {
       method: "POST",
       headers: { "Content-Type": "application/json", apikey: KEY, Authorization: `Bearer ${KEY}` },
-      body: JSON.stringify({
-        class_id: Number($("#cls").value), male_present: Number($("#male").value),
-        female_present: Number($("#female").value),
-      }),
+      body: JSON.stringify({ class_id: Number($("#cls").value), male_present: male, female_present: female }),
     });
-    const out = await res.json();
-    if (out.ok) {
-      toast("บันทึกแล้ว");
-    } else toast(out.message || "บันทึกไม่สำเร็จ", false);
-  } catch { toast("เชื่อมต่อไม่ได้", false); }
+    out = await res.json();
+  } catch {
+    out = { ok: false, message: "เชื่อมต่อไม่ได้ กรุณาลองใหม่อีกครั้ง" };
+  }
+  if (out.ok) {
+    const summary = `ชั้น ${cls} · มา ${male + female} คน (ชาย ${male} หญิง ${female})`;
+    if (Swal) {
+      await Swal.fire({
+        icon: "success", title: "บันทึกเสร็จสิ้น", text: summary, timer: 1500, timerProgressBar: true,
+        showConfirmButton: false, allowOutsideClick: false,
+      });
+    } else toast("บันทึกเสร็จสิ้น");
+    return closePage(summary);
+  }
+  const msg = out.message || "กรุณาลองใหม่อีกครั้ง";
+  if (Swal) {
+    await Swal.fire({ icon: "error", title: "บันทึกไม่สำเร็จ", text: msg, confirmButtonText: "ตกลง", confirmButtonColor: GREEN });
+  } else toast(msg, false);
   btn.disabled = false; refresh();
 });
 
-refresh(); setInterval(refresh, 30000);
+refresh(); timer = setInterval(refresh, 30000);
 </script>
 </body>
 </html>

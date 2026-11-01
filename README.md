@@ -15,10 +15,27 @@ GitHub Pages (`/web`) + Supabase (Postgres/RLS, Edge Functions, Auth) + LINE Rep
    ```
 4. GitHub → Settings
    - Secrets: `SUPABASE_ACCESS_TOKEN`, `SUPABASE_PROJECT_REF`, `SUPABASE_DB_PASSWORD`
-   - Variables: `SUPABASE_URL`, `SUPABASE_ANON_KEY` (publishable key เท่านั้น)
+   - Variables: `SUPABASE_URL`, `SUPABASE_ANON_KEY` (publishable key เท่านั้น), `ADMIN_EMAIL`, `LIFF_ID` (ไม่บังคับ ดูด้านล่าง)
    - Pages → Source: GitHub Actions
 5. LINE Developers: ตั้ง Webhook URL เป็น `https://<ref>.supabase.co/functions/v1/line-webhook` แล้วเชิญบอทเข้ากลุ่ม
 6. เข้าหน้าแอดมิน → ตั้งจำนวนนักเรียนทั้งหมดแต่ละชั้น (จำเป็นก่อนที่ครูจะลงได้)
+
+## LIFF (ไม่บังคับ): ให้หน้าลงสถิติปิดตัวเองหลังบันทึก
+หลังครูกดบันทึก หน้าเว็บจะแสดง "บันทึกเสร็จสิ้น" แล้วพยายามปิดตัวเอง แต่เบราว์เซอร์ในแอป LINE
+ยอมให้ปิดหน้าได้เฉพาะหน้าที่เปิดผ่าน LIFF เท่านั้น ถ้ายังไม่ตั้ง LIFF หน้าจะเปลี่ยนเป็นหน้าจอ
+"บันทึกเสร็จสิ้น — ปิดหน้านี้ได้เลย" แทน
+
+1. LINE Developers → provider เดียวกับบอท → Create a new channel → **LINE Login** (App type: Web app)
+2. แท็บ **LIFF** → Add
+   - Size: Full
+   - Endpoint URL: `https://<org>.github.io/<repo>/` (หน้าลงสถิติ)
+   - Scope: ไม่ต้องเลือก `chat_message.write` (ระบบไม่ได้ใช้ข้อมูลโปรไฟล์ ถ้าบังคับเลือกให้เลือกแค่ `profile`)
+   - คัดลอก **LIFF ID** (รูปแบบ `1234567890-AbCdEfGh` ไม่ใช่ความลับ)
+3. เปลี่ยนสถานะ channel LINE Login เป็น **Published** (ถ้ายังเป็น Developing จะใช้ได้เฉพาะผู้ดูแล/tester)
+4. ใส่ LIFF ID ทั้งสองที่ แล้วรัน workflow ทั้งสองใหม่
+   - GitHub → Variables → `LIFF_ID`
+   - Supabase → Edge Functions → Secrets → `LIFF_ID` (ปุ่ม "ลงสถิติ" ในการ์ดเช็คสถิติจะเปิดผ่าน LIFF)
+5. ลิงก์หน้าลงสถิติที่ให้ครูใช้ใน LINE: `https://liff.line.me/<LIFF_ID>`
 
 ## หมายเหตุ
 - เวลา "วันนี้"/เวลาตัดรอบ คำนวณใน DB (Asia/Bangkok) ทั้งหมด
