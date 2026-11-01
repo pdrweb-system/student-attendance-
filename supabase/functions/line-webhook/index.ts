@@ -1,6 +1,6 @@
 // LINE webhook: verifies X-Line-Signature, answers 3 commands via the Reply API (no Push).
 import { createClient } from "npm:@supabase/supabase-js@2";
-import { leaveFlex, type Row, SCHOOL, summaryFlex, thaiDate, thaiTime } from "./flex.ts";
+import { checkFlex, leaveFlex, type Row, summaryFlex } from "./flex.ts";
 
 async function verifySignature(raw: string, signature: string | null, secret: string): Promise<boolean> {
   if (!signature) return false;
@@ -51,20 +51,10 @@ Deno.serve(async (req) => {
         if (error) throw error;
         await reply(ev.replyToken, [summaryFlex(data, now, summaryUrl)], accessToken);
       } else if (text.includes("เช็คสถิติ")) {
-        const [{ data: st }, { data: rows }] = await Promise.all([
-          supabase.rpc("submit_status"), supabase.rpc("daily_summary"),
-        ]);
-        const pending = (rows as Row[]).filter((r) => !r.submitted).map((r) => r.name);
-        let msg = `📋 ตรวจสอบสถิติมาเรียน ${SCHOOL}\n${thaiDate(now)} เวลา ${thaiTime(now)} น.\n`;
-        if (!st.accepting) msg += `\n⛔ ${st.closed_message ?? "ระบบปิดอยู่"}`;
-        else {
-          msg += pending.length ? `\nยังไม่ลง (${pending.length} ชั้น): ${pending.join(", ")}` : "\n✅ ลงครบทุกชั้นแล้ว";
-          msg += st.can_submit
-            ? `\nลงได้ถึง ${thaiTime(new Date(st.deadline))} น.`
-            : `\nหมดเวลาลงของครูแล้ว (${st.cutoff_time} น.) ติดต่อแอดมิน`;
-        }
-        if (siteUrl) msg += `\n\nลงสถิติ/ดูสรุป: ${siteUrl}`;
-        await reply(ev.replyToken, [{ type: "text", text: msg }], accessToken);
+        const [st, sum] = await Promise.all([supabase.rpc("submit_status"), supabase.rpc("daily_summary")]);
+        if (st.error) throw st.error;
+        if (sum.error) throw sum.error;
+        await reply(ev.replyToken, [checkFlex(st.data, sum.data, now, siteUrl || undefined)], accessToken);
       }
     } catch (e) {
       console.error(e);
