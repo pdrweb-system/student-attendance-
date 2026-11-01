@@ -52,8 +52,11 @@ function agg(group: Row[]): Agg {
 //   ชั้น | เต็ม: ชาย หญิง รวม | มา: ชาย หญิง รวม | ขาด: ชาย หญิง รวม
 // Flex units: name 5 + 9 numbers x 3 = 32, plus a 1px rule between the groups.
 // The name column is narrow, so the total rows put "รวม" on its own line.
+// Class rows use a fixed height so the vertical rules run unbroken from row to row;
+// the total rows have no fixed height, so they grow to fit their two-line label
+// (Thai text is drawn with taller lines on phones than in a desktop preview).
 const NAME = 5, NUM = 3, GROUP = 3 * NUM;
-const ROW_H = "26px", TOTAL_ROW_H = "34px";
+const ROW_H = "26px";
 
 type CellOpt = { color?: string; bold?: boolean; size?: string };
 // shrink-to-fit: if a phone's Thai font is wider than expected, LINE shrinks the text
@@ -64,8 +67,9 @@ const cell = (text: string, flex: number, o: CellOpt = {}) => ({
 });
 const rule = (color: string = C.grid) => ({ type: "separator", color });
 
-const tableRow = (contents: Row[], bg?: string, height = ROW_H) => ({
-  type: "box", layout: "horizontal", height, cornerRadius: "6px",
+const tableRow = (contents: Row[], bg?: string, height: string | null = ROW_H) => ({
+  type: "box", layout: "horizontal", cornerRadius: "6px",
+  ...(height ? { height } : { paddingTop: "5px", paddingBottom: "5px" }),
   contents, ...(bg ? { backgroundColor: bg } : {}),
 });
 
@@ -89,10 +93,10 @@ function tableHead() {
       h("ชั้น", NAME, C.brand),
       rule(),
       { type: "box", layout: "vertical", flex: 3 * GROUP, contents: [
-        { type: "box", layout: "horizontal", height: "22px", contents: [
+        { type: "box", layout: "horizontal", height: "26px", contents: [
           h("เต็ม", GROUP, C.sub), rule(), h("มา", GROUP, C.good), rule(), h("ขาด", GROUP, C.bad),
         ] },
-        { type: "box", layout: "horizontal", height: "20px", contents: [
+        { type: "box", layout: "horizontal", height: "22px", contents: [
           ...sub(C.sub), rule(), ...sub(C.good), rule(), ...sub(C.bad),
         ] },
       ] },
@@ -126,7 +130,7 @@ function dataRow(label: string, a: Agg, kind: "class" | "sub" | "grand", bg?: st
     cell(String(a.ma), NUM, { bold, color: absent(a.ma) }),
     cell(String(a.fa), NUM, { bold, color: absent(a.fa) }),
     cell(String(a.absent), NUM, { bold: true, color: absent(a.absent) }),
-  ], grand ? C.brand : bg, kind === "class" ? ROW_H : TOTAL_ROW_H);
+  ], grand ? C.brand : bg, kind === "class" ? ROW_H : null);
 }
 
 function pendingRow(r: Row, bg?: string) {
