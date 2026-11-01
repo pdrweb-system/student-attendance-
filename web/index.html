@@ -1,38 +1,78 @@
 <!doctype html>
 <html lang="th">
 <head>
-<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#1a5e1a">
 <title>ลงสถิติมาเรียน</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Sarabun:wght@400;500;600;700&display=swap">
 <link rel="stylesheet" href="style.css">
 <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11.26.25/dist/sweetalert2.all.min.js"></script>
 </head>
-<body>
-<header><h1>ลงสถิติมาเรียนประจำวัน</h1><small>โรงเรียนวัดปรีดาราม (มณีศิริวรรณ)</small></header>
+<body class="teacher-page">
+<header class="hero">
+  <div class="hero-in">
+    <h1>ลงสถิติมาเรียน</h1>
+    <div class="hero-sub">โรงเรียนวัดปรีดาราม (มณีศิริวรรณ)</div>
+    <div class="hero-date" id="today">กำลังโหลด…</div>
+  </div>
+</header>
 <div id="nav"></div>
-<main>
-  <div id="banner" class="banner">กำลังโหลด…</div>
-  <form id="form" class="card">
-    <label for="cls">ชั้น</label>
-    <select id="cls" required></select>
-    <p id="current" class="muted"></p>
-    <div class="row">
-      <div><label for="male">ชายที่มา (คน)</label><input id="male" type="number" min="0" inputmode="numeric" required></div>
-      <div><label for="female">หญิงที่มา (คน)</label><input id="female" type="number" min="0" inputmode="numeric" required></div>
+<main class="teacher">
+  <section id="status" class="status-card" aria-live="polite"></section>
+
+  <form id="form" class="card tform nosel" novalidate>
+    <h2 class="step"><span>1</span>เลือกชั้น</h2>
+    <div id="classes" class="class-grid" role="radiogroup" aria-label="ชั้น"></div>
+    <p id="current" class="current" hidden></p>
+
+    <h2 class="step"><span>2</span>จำนวนนักเรียนที่มา</h2>
+    <div id="counters" class="counters">
+      <div class="counter male">
+        <div class="counter-head"><label for="male" class="who">ชาย</label><span class="of" id="ofMale"></span></div>
+        <div class="stepper">
+          <button type="button" data-step="male:-1" aria-label="ลดจำนวนชาย">−</button>
+          <input id="male" type="number" min="0" inputmode="numeric" pattern="[0-9]*" placeholder="–">
+          <button type="button" data-step="male:1" aria-label="เพิ่มจำนวนชาย">+</button>
+        </div>
+        <div class="err-msg" id="errMale"></div>
+      </div>
+      <div class="counter female">
+        <div class="counter-head"><label for="female" class="who">หญิง</label><span class="of" id="ofFemale"></span></div>
+        <div class="stepper">
+          <button type="button" data-step="female:-1" aria-label="ลดจำนวนหญิง">−</button>
+          <input id="female" type="number" min="0" inputmode="numeric" pattern="[0-9]*" placeholder="–">
+          <button type="button" data-step="female:1" aria-label="เพิ่มจำนวนหญิง">+</button>
+        </div>
+        <div class="err-msg" id="errFemale"></div>
+      </div>
     </div>
-    <p id="total" class="muted"></p>
-    <p><button id="submit" type="submit">บันทึก</button></p>
-    <p class="muted">ส่งซ้ำได้ ระบบใช้ข้อมูลที่ส่งล่าสุด</p>
+    <button type="button" id="fill" class="fill-all">✓ มาครบทุกคน</button>
+    <p class="hint">กด "มาครบทุกคน" แล้วกด − ตามจำนวนคนที่ขาด · ส่งซ้ำได้ ระบบใช้ข้อมูลที่ส่งล่าสุด</p>
+
+    <div class="savebar">
+      <div id="sum" class="sum"></div>
+      <button id="submit" type="submit" class="save" disabled>บันทึก</button>
+    </div>
   </form>
 </main>
 <script type="module">
-import { sb, FUNCTIONS_URL, $, toast, getStatus, statusBanner, nav, fmtTime } from "./common.js";
+import { sb, FUNCTIONS_URL, $, esc, toast, getStatus, nav, fmtTime, fmtDate } from "./common.js";
 import * as cfg from "./config.js";
 const KEY = cfg.SUPABASE_ANON_KEY;
 const GREEN = "#1a5e1a";
 const Swal = window.Swal; // SweetAlert2 from <head>; falls back to toasts if it didn't load
 $("#nav").innerHTML = nav("index");
 
-let rows = [], status = null, timer;
+// The class this device used last time, so a teacher doesn't have to pick it every day.
+const remembered = {
+  get() { try { return Number(localStorage.getItem("att-class")) || null; } catch { return null; } },
+  set(v) { try { localStorage.setItem("att-class", String(v)); } catch { /* private mode: ignore */ } },
+};
+
+let rows = [], status = null, selected = remembered.get(), dirty = false, timer, tick, skew = 0;
+const cur = () => rows.find((r) => r.class_id === selected);
+const val = (el) => (el.value === "" ? null : Number(el.value));
 
 // Optional LIFF app (config LIFF_ID): inside LINE it is the only way a page can close itself.
 const liffReady = cfg.LIFF_ID ? loadLiff(cfg.LIFF_ID) : Promise.resolve(null);
@@ -52,6 +92,126 @@ async function loadLiff(liffId) {
   }
 }
 
+async function refresh() {
+  let res, st;
+  try {
+    [res, st] = await Promise.all([sb.rpc("daily_summary"), getStatus(selected)]);
+  } catch {
+    return toast("โหลดข้อมูลไม่สำเร็จ", false);
+  }
+  if (res.error || !st) return toast("โหลดข้อมูลไม่สำเร็จ", false);
+  rows = res.data; status = st;
+  if (st.now) skew = new Date(st.now).getTime() - Date.now(); // countdown follows the server clock
+  if (selected && !cur()) selected = null;
+  paint();
+}
+
+function paint() {
+  $("#today").textContent = `📅 ${fmtDate(status.today)}`;
+  paintStatus();
+  $("#classes").innerHTML = rows.map(chip).join("");
+  const r = cur(), open = !!status.can_submit;
+  $("#form").classList.toggle("locked", !open);
+  $("#form").classList.toggle("nosel", !r);
+  const c = $("#current");
+  c.hidden = !r?.submitted;
+  if (r?.submitted) c.textContent = `✓ ลงแล้ววันนี้ เวลา ${fmtTime(r.updated_at)} น.${open ? " · แก้ไขแล้วกดบันทึกใหม่ได้" : ""}`;
+  $("#ofMale").textContent = r ? `จาก ${r.total_male} คน` : "";
+  $("#ofFemale").textContent = r ? `จาก ${r.total_female} คน` : "";
+  if (r && !dirty) {
+    $("#male").value = r.submitted ? r.male_present : "";
+    $("#female").value = r.submitted ? r.female_present : "";
+  }
+  for (const el of $("#form").querySelectorAll("input, .stepper button, #fill")) el.disabled = !open || !r;
+  update();
+}
+
+const chip = (r) => `<button type="button" role="radio" aria-checked="${r.class_id === selected}"
+  class="cls${r.class_id === selected ? " on" : ""}${r.submitted ? " done" : ""}" data-id="${r.class_id}">
+  <span class="cls-name">${esc(r.name)}</span>
+  <span class="cls-st">${r.submitted ? `✓ ${fmtTime(r.updated_at)}` : "ยังไม่ลง"}</span></button>`;
+
+function paintStatus() {
+  const s = status;
+  let kind, icon, title, detail;
+  if (!s.accepting) {
+    [kind, icon, title, detail] = ["closed", "⛔", "ปิดรับการลงสถิติ", esc(s.closed_message || "ระบบปิดอยู่")];
+  } else if (!s.can_submit) {
+    [kind, icon, title, detail] = ["late", "⏰", "หมดเวลาลงสถิติแล้ว", `ปิดรับเมื่อ ${esc(s.cutoff_time)} น. · กรุณาติดต่อแอดมิน`];
+  } else {
+    [kind, icon, title] = ["open", "🟢", "เปิดรับการลงสถิติ"];
+    detail = `ลงได้ถึง <b>${fmtTime(s.deadline)} น.</b>${s.extended ? " (แอดมินเปิดช่วงลงเพิ่ม)" : ""}` +
+      `<br><span class="countdown" id="countdown"></span>`;
+  }
+  $("#status").className = `status-card ${kind}`;
+  $("#status").innerHTML = `<div class="ico">${icon}</div><div><div class="t">${title}</div><div class="d">${detail}</div></div>`;
+  countdown();
+}
+
+function countdown() {
+  const el = $("#countdown");
+  if (!el || !status?.can_submit) return;
+  const ms = new Date(status.deadline).getTime() - (Date.now() + skew);
+  if (ms <= 0) { el.textContent = "หมดเวลาแล้ว"; refresh(); return; }
+  const m = Math.ceil(ms / 60000);
+  el.textContent = m < 60 ? `⏳ เหลือเวลา ${m} นาที` : `⏳ เหลือเวลา ${Math.floor(m / 60)} ชม. ${m % 60} นาที`;
+}
+
+// Live total, over-enrollment warnings, and whether บันทึก can be pressed.
+function update() {
+  const r = cur(), m = val($("#male")), f = val($("#female"));
+  const overM = !!r && m != null && m > r.total_male, overF = !!r && f != null && f > r.total_female;
+  $("#errMale").textContent = overM ? `เกินจำนวนนักเรียน (${r.total_male})` : "";
+  $("#errFemale").textContent = overF ? `เกินจำนวนนักเรียน (${r.total_female})` : "";
+  $("#male").classList.toggle("bad", overM);
+  $("#female").classList.toggle("bad", overF);
+  const filled = m != null && f != null;
+  let html;
+  if (!r) html = "เลือกชั้นก่อน";
+  else if (!r.total) html = "ยังไม่ได้ตั้งจำนวนนักเรียนของชั้นนี้ ติดต่อแอดมิน";
+  else if (overM || overF) html = `<span class="neg">จำนวนที่มาเกินจำนวนนักเรียน</span>`;
+  else if (!filled) html = `ชั้น ${esc(r.name)} · ทั้งหมด <b>${r.total}</b> คน`;
+  else {
+    const absent = r.total - m - f;
+    html = `มา <b>${m + f}</b> / ${r.total} คน<br>ขาด <b class="${absent > 0 ? "neg" : ""}">${Math.max(0, absent)}</b> คน`;
+  }
+  $("#sum").innerHTML = html;
+  $("#submit").disabled = !status?.can_submit || !r || !r.total || !filled || overM || overF;
+}
+
+$("#classes").addEventListener("click", (e) => {
+  const b = e.target.closest(".cls");
+  if (!b) return;
+  selected = Number(b.dataset.id);
+  remembered.set(selected);
+  dirty = false;
+  paint();   // instant feedback
+  refresh(); // the admin may have opened extra time for just this class
+});
+
+// − / + buttons. From an empty box, − starts from "everyone present" (so − counts absentees).
+$("#counters").addEventListener("click", (e) => {
+  const b = e.target.closest("[data-step]"), r = cur();
+  if (!b || b.disabled || !r) return;
+  const [id, d] = b.dataset.step.split(":");
+  const el = $("#" + id), max = id === "male" ? r.total_male : r.total_female;
+  let v = val(el);
+  if (v == null) v = Number(d) < 0 ? max : 0;
+  el.value = Math.min(max, Math.max(0, v + Number(d)));
+  dirty = true;
+  update();
+});
+
+$("#fill").addEventListener("click", () => {
+  const r = cur();
+  if (!r) return;
+  $("#male").value = r.total_male;
+  $("#female").value = r.total_female;
+  dirty = true;
+  update();
+});
+for (const id of ["male", "female"]) $("#" + id).addEventListener("input", () => { dirty = true; update(); });
+
 // After a successful save: close the page. Inside LINE that needs LIFF; other browsers only let a
 // script close a tab it opened. If the page is still open, show a "done" screen instead of the form.
 async function closePage(summary) {
@@ -62,47 +222,22 @@ async function closePage(summary) {
 }
 function showDone(summary) {
   clearInterval(timer);
+  clearInterval(tick);
   $("main").innerHTML = `<div class="card done">
-    <div class="done-icon">✅</div><h2>บันทึกเสร็จสิ้น</h2><p>${summary}</p>
+    <div class="done-icon">✅</div><h2>บันทึกเสร็จสิ้น</h2><p>${esc(summary)}</p>
     <p class="muted">ปิดหน้านี้ได้เลย</p>
     <p><button id="again" class="secondary" type="button">ลงสถิติชั้นอื่น</button></p></div>`;
   $("#again").addEventListener("click", () => location.reload());
 }
 
-async function refresh() {
-  const cid = Number($("#cls").value) || null;
-  const [{ data, error }, st] = await Promise.all([sb.rpc("daily_summary"), getStatus(cid)]);
-  if (error) return toast("โหลดข้อมูลไม่สำเร็จ", false);
-  rows = data; status = st;
-  const sel = $("#cls");
-  if (!sel.options.length) sel.innerHTML = rows.map((r) => `<option value="${r.class_id}">${r.name}</option>`).join("");
-  paint();
-}
-
-function paint() {
-  const r = rows.find((x) => x.class_id === Number($("#cls").value));
-  const b = statusBanner(status);
-  $("#banner").className = "banner " + b.cls; $("#banner").textContent = b.text;
-  $("#total").textContent = r ? `นักเรียนทั้งหมด: ชาย ${r.total_male} หญิง ${r.total_female}` : "";
-  if (r?.submitted) {
-    $("#current").textContent = `ลงแล้ววันนี้ (ล่าสุด ${fmtTime(r.updated_at)} น.) — แก้ไขต่อได้`;
-    if (document.activeElement !== $("#male") && document.activeElement !== $("#female")) {
-      $("#male").value = r.male_present; $("#female").value = r.female_present;
-    }
-  } else $("#current").textContent = "ชั้นนี้ยังไม่ลงสถิติวันนี้";
-  const locked = !status.can_submit;
-  for (const el of $("#form").elements) el.disabled = locked && el.id !== "cls";
-}
-
-$("#cls").addEventListener("change", () => { $("#male").value = ""; $("#female").value = ""; refresh(); });
-
 $("#form").addEventListener("submit", async (e) => {
   e.preventDefault();
-  const btn = $("#submit"); btn.disabled = true;
-  const cls = $("#cls").selectedOptions[0]?.textContent ?? "";
-  const male = Number($("#male").value), female = Number($("#female").value);
+  const r = cur(), btn = $("#submit");
+  if (!r || btn.disabled) return;
+  btn.disabled = true;
+  const male = val($("#male")), female = val($("#female"));
   Swal?.fire({
-    title: "กำลังบันทึก…", text: `ชั้น ${cls}`, allowOutsideClick: false, allowEscapeKey: false,
+    title: "กำลังบันทึก…", text: `ชั้น ${r.name}`, allowOutsideClick: false, allowEscapeKey: false,
     showConfirmButton: false, didOpen: () => Swal.showLoading(),
   });
   let out;
@@ -110,14 +245,14 @@ $("#form").addEventListener("submit", async (e) => {
     const res = await fetch(`${FUNCTIONS_URL}/submit-attendance`, {
       method: "POST",
       headers: { "Content-Type": "application/json", apikey: KEY, Authorization: `Bearer ${KEY}` },
-      body: JSON.stringify({ class_id: Number($("#cls").value), male_present: male, female_present: female }),
+      body: JSON.stringify({ class_id: r.class_id, male_present: male, female_present: female }),
     });
     out = await res.json();
   } catch {
     out = { ok: false, message: "เชื่อมต่อไม่ได้ กรุณาลองใหม่อีกครั้ง" };
   }
   if (out.ok) {
-    const summary = `ชั้น ${cls} · มา ${male + female} คน (ชาย ${male} หญิง ${female})`;
+    const summary = `ชั้น ${r.name} · มา ${male + female} คน (ชาย ${male} หญิง ${female})`;
     if (Swal) {
       await Swal.fire({
         icon: "success", title: "บันทึกเสร็จสิ้น", text: summary, timer: 1500, timerProgressBar: true,
@@ -130,10 +265,12 @@ $("#form").addEventListener("submit", async (e) => {
   if (Swal) {
     await Swal.fire({ icon: "error", title: "บันทึกไม่สำเร็จ", text: msg, confirmButtonText: "ตกลง", confirmButtonColor: GREEN });
   } else toast(msg, false);
-  btn.disabled = false; refresh();
+  refresh();
 });
 
-refresh(); timer = setInterval(refresh, 30000);
+refresh();
+timer = setInterval(refresh, 30000);
+tick = setInterval(countdown, 10000);
 </script>
 </body>
 </html>
