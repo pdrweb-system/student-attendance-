@@ -1,8 +1,6 @@
 // LINE webhook: verifies X-Line-Signature, answers 3 commands via the Reply API (no Push).
 import { createClient } from "npm:@supabase/supabase-js@2";
-
-const LEAVE_URL = "https://pdrweb-system.github.io/leavesystem/";
-const SCHOOL = "โรงเรียนวัดปรีดาราม (มณีศิริวรรณ)";
+import { leaveFlex, type Row, SCHOOL, summaryFlex, thaiDate, thaiTime } from "./flex.ts";
 
 async function verifySignature(raw: string, signature: string | null, secret: string): Promise<boolean> {
   if (!signature) return false;
@@ -14,87 +12,6 @@ async function verifySignature(raw: string, signature: string | null, secret: st
   let diff = 0;
   for (let i = 0; i < expected.length; i++) diff |= expected.charCodeAt(i) ^ signature.charCodeAt(i);
   return diff === 0;
-}
-
-const thaiDate = (d: Date) =>
-  new Intl.DateTimeFormat("th-TH-u-ca-buddhist", { timeZone: "Asia/Bangkok", dateStyle: "full" }).format(d);
-const thaiTime = (d: Date) =>
-  new Intl.DateTimeFormat("th-TH", { timeZone: "Asia/Bangkok", hour: "2-digit", minute: "2-digit" }).format(d);
-
-// deno-lint-ignore no-explicit-any
-type Row = Record<string, any>;
-
-const cell = (text: string, flex: number, opts: Row = {}) => ({
-  type: "text", text, flex, size: "sm", align: opts.align ?? "center", color: opts.color ?? "#333333",
-  weight: opts.weight ?? "regular", wrap: false,
-});
-
-function summaryFlex(rows: Row[], now: Date) {
-  const sub = rows.filter((r) => r.submitted);
-  const tot = rows.reduce((s, r) => s + r.total, 0);
-  // Subtotals count only classes that have submitted, so "not yet submitted" is not shown as absent.
-  const sumRow = (label: string, group: Row[]) => {
-    const t = group.reduce((s, r) => s + r.total, 0);
-    const p = group.reduce((s, r) => s + r.present, 0);
-    return { type: "box", layout: "baseline", spacing: "sm", contents: [
-      cell(label, 3, { weight: "bold" }), cell(String(t), 2, { weight: "bold" }),
-      cell(String(p), 2, { weight: "bold" }), cell(String(t - p), 2, { weight: "bold" }),
-      cell(t ? (100 * p / t).toFixed(1) : "-", 2, { weight: "bold" }),
-    ] };
-  };
-  const header = {
-    type: "box", layout: "baseline", spacing: "sm", contents: [
-      cell("ชั้น", 3, { weight: "bold" }), cell("ทั้งหมด", 2, { weight: "bold" }),
-      cell("มา", 2, { weight: "bold" }), cell("ไม่มา", 2, { weight: "bold" }), cell("%", 2, { weight: "bold" }),
-    ],
-  };
-  const lines = rows.map((r) => ({
-    type: "box", layout: "baseline", spacing: "sm",
-    contents: r.submitted
-      ? [cell(r.name, 3, {}), cell(String(r.total), 2), cell(String(r.present), 2),
-         cell(String(r.absent), 2), cell(r.pct == null ? "-" : String(r.pct), 2)]
-      : [cell(r.name, 3, { color: "#999999" }), cell(String(r.total), 2, { color: "#999999" }),
-         cell("ยังไม่ลง", 6, { color: "#c0392b" })],
-  }));
-  return {
-    type: "flex", altText: "สรุปสถิติมาเรียนวันนี้",
-    contents: {
-      type: "bubble", size: "mega",
-      header: { type: "box", layout: "vertical", backgroundColor: "#1a5e1a", contents: [
-        { type: "text", text: "สรุปสถิติมาเรียน", color: "#ffffff", weight: "bold", size: "lg" },
-        { type: "text", text: thaiDate(now), color: "#d8f0d8", size: "xs" },
-      ] },
-      body: { type: "box", layout: "vertical", spacing: "sm", contents: [
-        header, { type: "separator" }, ...lines, { type: "separator" },
-        sumRow("รวมอนุบาล", sub.filter((r) => r.name.startsWith("อ."))),
-        sumRow("รวมประถม", sub.filter((r) => r.name.startsWith("ป."))),
-        sumRow("รวมทั้งหมด", sub),
-        { type: "text", size: "xxs", color: "#888888", wrap: true,
-          text: `รวมเฉพาะชั้นที่ลงแล้ว ${sub.length}/${rows.length} ชั้น (นักเรียนทั้งโรงเรียน ${tot} คน)` },
-      ] },
-    },
-  };
-}
-
-function leaveFlex() {
-  return {
-    type: "flex", altText: "ระบบการลาออนไลน์",
-    contents: {
-      type: "bubble",
-      header: { type: "box", layout: "vertical", backgroundColor: "#1a5e1a", contents: [
-        { type: "text", text: "ระบบการลาออนไลน์", color: "#ffffff", weight: "bold", size: "lg" },
-        { type: "text", text: SCHOOL, color: "#d8f0d8", size: "xs", wrap: true },
-      ] },
-      body: { type: "box", layout: "vertical", spacing: "sm", contents: [
-        { type: "text", text: "ปีงบประมาณ 2569", weight: "bold" },
-        { type: "text", text: "1 เม.ย. 2569 – 30 ก.ย. 2569", size: "sm", color: "#555555" },
-      ] },
-      footer: { type: "box", layout: "vertical", contents: [
-        { type: "button", style: "primary", color: "#1a5e1a",
-          action: { type: "uri", label: "ไปที่ระบบการลา", uri: LEAVE_URL } },
-      ] },
-    },
-  };
 }
 
 async function reply(token: string, messages: Row[], accessToken: string) {
@@ -119,6 +36,7 @@ Deno.serve(async (req) => {
 
   const supabase = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
   const siteUrl = Deno.env.get("SITE_URL") ?? "";
+  const summaryUrl = siteUrl ? siteUrl.replace(/\/?$/, "/") + "summary.html" : undefined;
   const events: Row[] = JSON.parse(raw).events ?? [];
 
   for (const ev of events) {
@@ -131,7 +49,7 @@ Deno.serve(async (req) => {
       } else if (text.includes("สรุปสถิติ")) {
         const { data, error } = await supabase.rpc("daily_summary");
         if (error) throw error;
-        await reply(ev.replyToken, [summaryFlex(data, now)], accessToken);
+        await reply(ev.replyToken, [summaryFlex(data, now, summaryUrl)], accessToken);
       } else if (text.includes("เช็คสถิติ")) {
         const [{ data: st }, { data: rows }] = await Promise.all([
           supabase.rpc("submit_status"), supabase.rpc("daily_summary"),
