@@ -17,6 +17,8 @@ const C = {
   brandSoft: "#EAF4EA", // light green panels
   zebra: "#F6F9F6",
   track: "#D5E6D5",
+  grid: "#D9E4D9",      // vertical rules between column groups
+  gridOnBrand: "#5F8F5F",
   text: "#1F2A1F",
   sub: "#5F6B5F",
   muted: "#A3ABA3",
@@ -28,27 +30,42 @@ const C = {
   headerSub: "#CFE8CF",
 };
 
-// Attendance-rate colour: >= 90% green, >= 80% amber, otherwise red.
-const rateColor = (p: number | null) => (p == null ? C.muted : p >= 90 ? C.good : p >= 80 ? C.warn : C.bad);
 const fmtPct = (p: number | null) => (p == null ? "-" : p.toFixed(1));
 
-function agg(group: Row[]) {
-  const total = group.reduce((s, r) => s + r.total, 0);
-  const present = group.reduce((s, r) => s + r.present, 0);
-  return { total, present, absent: total - present, pct: total ? (100 * present) / total : null };
+type Agg = {
+  tm: number; tf: number; // เต็ม ชาย / หญิง
+  mp: number; fp: number; // มา ชาย / หญิง
+  ma: number; fa: number; // ขาด ชาย / หญิง
+  total: number; present: number; absent: number; pct: number | null;
+};
+
+function agg(group: Row[]): Agg {
+  const sum = (k: string) => group.reduce((s, r) => s + (Number(r[k]) || 0), 0);
+  const tm = sum("total_male"), tf = sum("total_female"), mp = sum("male_present"), fp = sum("female_present");
+  const total = tm + tf, present = mp + fp;
+  return { tm, tf, mp, fp, ma: tm - mp, fa: tf - fp, total, present, absent: total - present,
+    pct: total ? (100 * present) / total : null };
 }
 
-// Every table row uses the same columns (ชั้น | ทั้งหมด | มา | ไม่มา | %) and the same
-// horizontal padding, so the columns line up. Flex units: 3 + 2 + 2 + 2 + 2 = 11.
-const cell = (text: string, flex: number, o: { color?: string; bold?: boolean; size?: string } = {}) => ({
-  type: "text", text, flex, size: o.size ?? "sm", align: "center", gravity: "center",
-  color: o.color ?? C.text, weight: o.bold ? "bold" : "regular",
+// LINE limits one bubble to 30 KB of JSON; with 8 classes this card is ~21 KB.
+// Table columns, identical in every row so they line up:
+//   ชั้น | เต็ม: ชาย หญิง | มา: ชาย หญิง รวม | ขาด: ชาย หญิง รวม
+// Flex units: name 7 + 8 numbers x 3 = 31, plus a 1px rule between the groups.
+const NAME = 7, NUM = 3;
+const ROW_H = "26px";
+
+type CellOpt = { color?: string; bold?: boolean; size?: string };
+// shrink-to-fit: if a phone's Thai font is wider than expected, LINE shrinks the text
+// instead of cutting it off with "…" (best effort; ignored by very old LINE versions).
+const cell = (text: string, flex: number, o: CellOpt = {}) => ({
+  type: "text", text, flex, size: o.size ?? "xs", align: "center", gravity: "center",
+  color: o.color ?? C.text, adjustMode: "shrink-to-fit", ...(o.bold ? { weight: "bold" } : {}),
 });
+const rule = (color: string = C.grid) => ({ type: "separator", color });
 
 const tableRow = (contents: Row[], bg?: string) => ({
-  type: "box", layout: "horizontal", contents,
-  paddingTop: "5px", paddingBottom: "5px", paddingStart: "2px", paddingEnd: "2px", cornerRadius: "6px",
-  ...(bg ? { backgroundColor: bg } : {}),
+  type: "box", layout: "horizontal", height: ROW_H, cornerRadius: "6px",
+  contents, ...(bg ? { backgroundColor: bg } : {}),
 });
 
 // Small rounded badge centred inside a cell spanning `flex` units.
@@ -56,10 +73,63 @@ const badge = (text: string, flex: number) => ({
   type: "box", layout: "horizontal", flex, justifyContent: "center", alignItems: "center",
   contents: [{
     type: "box", layout: "vertical", flex: 0, backgroundColor: C.badSoft, cornerRadius: "12px",
-    paddingStart: "10px", paddingEnd: "10px", paddingTop: "2px", paddingBottom: "2px",
-    contents: [{ type: "text", text, size: "xs", color: C.bad, weight: "bold" }],
+    paddingStart: "10px", paddingEnd: "10px", paddingTop: "1px", paddingBottom: "1px",
+    contents: [{ type: "text", text, size: "xxs", color: C.bad, weight: "bold" }],
   }],
 });
+
+function tableHead() {
+  const h = (t: string, flex: number, color: string, size = "xs") => cell(t, flex, { bold: true, size, color });
+  const mf = () => [h("ชาย", NUM, C.sub, "xxs"), h("หญิง", NUM, C.sub, "xxs")];
+  return {
+    type: "box", layout: "horizontal", backgroundColor: C.brandSoft, cornerRadius: "6px",
+    contents: [
+      h("ชั้น", NAME, C.brand),
+      rule(),
+      { type: "box", layout: "vertical", flex: 8 * NUM, contents: [
+        { type: "box", layout: "horizontal", height: "22px", contents: [
+          h("เต็ม", 2 * NUM, C.sub), rule(), h("มา", 3 * NUM, C.good), rule(), h("ขาด", 3 * NUM, C.bad),
+        ] },
+        { type: "box", layout: "horizontal", height: "20px", contents: [
+          ...mf(), rule(), ...mf(), h("รวม", NUM, C.good, "xxs"), rule(), ...mf(), h("รวม", NUM, C.bad, "xxs"),
+        ] },
+      ] },
+    ],
+  };
+}
+
+// kind: "class" = one class, "sub" = รวมอนุบาล/รวมประถม, "grand" = รวมทั้งหมด
+function dataRow(label: string, a: Agg, kind: "class" | "sub" | "grand", bg?: string) {
+  const grand = kind === "grand", bold = kind !== "class";
+  const fg = grand ? C.white : C.text;
+  const absent = (n: number) => (grand ? C.white : n > 0 ? C.bad : fg);
+  const r = () => rule(grand ? C.gridOnBrand : C.grid);
+  return tableRow([
+    cell(label, NAME, { bold: true, color: fg, size: kind === "class" ? "xs" : "xxs" }),
+    r(),
+    cell(String(a.tm), NUM, { bold, color: grand ? C.white : C.sub }),
+    cell(String(a.tf), NUM, { bold, color: grand ? C.white : C.sub }),
+    r(),
+    cell(String(a.mp), NUM, { bold, color: fg }),
+    cell(String(a.fp), NUM, { bold, color: fg }),
+    cell(String(a.present), NUM, { bold: true, color: grand ? C.white : C.good }),
+    r(),
+    cell(String(a.ma), NUM, { bold, color: absent(a.ma) }),
+    cell(String(a.fa), NUM, { bold, color: absent(a.fa) }),
+    cell(String(a.absent), NUM, { bold: true, color: absent(a.absent) }),
+  ], grand ? C.brand : bg);
+}
+
+function pendingRow(r: Row, bg?: string) {
+  return tableRow([
+    cell(r.name, NAME, { color: C.muted }),
+    rule(),
+    cell(String(r.total_male ?? 0), NUM, { color: C.muted }),
+    cell(String(r.total_female ?? 0), NUM, { color: C.muted }),
+    rule(),
+    badge("ยังไม่ลง", 6 * NUM),
+  ], bg);
+}
 
 const kv = (k: string, v: string, color: string = C.text) => ({
   type: "box", layout: "baseline", contents: [
@@ -86,7 +156,7 @@ export function summaryFlex(rows: Row[], now: Date, summaryUrl?: string) {
   const all = agg(done);
   const kg = agg(done.filter((r) => String(r.name).startsWith("อ.")));
   const pri = agg(done.filter((r) => String(r.name).startsWith("ป.")));
-  const schoolTotal = rows.reduce((s, r) => s + r.total, 0);
+  const schoolTotal = rows.reduce((s, r) => s + (Number(r.total) || 0), 0);
 
   const kpi = {
     type: "box", layout: "vertical", backgroundColor: C.brandSoft, cornerRadius: "12px", paddingAll: "12px",
@@ -99,7 +169,7 @@ export function summaryFlex(rows: Row[], now: Date, summaryUrl?: string) {
         ] },
         { type: "box", layout: "vertical", flex: 1, spacing: "xs", contents: [
           kv("มา", `${all.present} คน`, C.good),
-          kv("ไม่มา", `${all.absent} คน`, all.absent ? C.bad : C.text),
+          kv("ขาด", `${all.absent} คน`, all.absent ? C.bad : C.text),
           kv("ลงแล้ว", `${done.length}/${rows.length} ชั้น`, pending ? C.warn : C.good),
         ] },
       ] },
@@ -109,41 +179,10 @@ export function summaryFlex(rows: Row[], now: Date, summaryUrl?: string) {
     ],
   };
 
-  const head = tableRow([
-    cell("ชั้น", 3, { bold: true, size: "xs", color: C.brand }),
-    cell("ทั้งหมด", 2, { bold: true, size: "xs", color: C.brand }),
-    cell("มา", 2, { bold: true, size: "xs", color: C.brand }),
-    cell("ไม่มา", 2, { bold: true, size: "xs", color: C.brand }),
-    cell("%", 2, { bold: true, size: "xs", color: C.brand }),
-  ], C.brandSoft);
-
-  const classRows = rows.map((r, i) => tableRow(
-    r.submitted
-      ? [
-        cell(r.name, 3, { bold: true }),
-        cell(String(r.total), 2),
-        cell(String(r.present), 2),
-        cell(String(r.absent), 2, { color: r.absent ? C.bad : C.text }),
-        cell(fmtPct(r.pct), 2, { bold: true, color: rateColor(r.pct) }),
-      ]
-      : [
-        cell(r.name, 3, { color: C.muted }),
-        cell(String(r.total), 2, { color: C.muted }),
-        badge("ยังไม่ลง", 6),
-      ],
-    i % 2 ? C.zebra : undefined,
-  ));
-
-  const sumRow = (label: string, a: ReturnType<typeof agg>, grand = false) => {
-    const fg = grand ? C.white : C.text;
-    return tableRow([
-      cell(label, 3, { bold: true, color: fg }),
-      cell(String(a.total), 2, { bold: true, color: fg }),
-      cell(String(a.present), 2, { bold: true, color: fg }),
-      cell(String(a.absent), 2, { bold: true, color: fg }),
-      cell(fmtPct(a.pct), 2, { bold: true, color: grand ? C.white : rateColor(a.pct) }),
-    ], grand ? C.brand : C.brandSoft);
-  };
+  const classRows = rows.map((r, i) => {
+    const bg = i % 2 ? C.zebra : undefined;
+    return r.submitted ? dataRow(r.name, agg([r]), "class", bg) : pendingRow(r, bg);
+  });
 
   // Only needed while some classes are pending; once all have submitted the grand-total row says it all.
   const notes = pending
@@ -155,8 +194,9 @@ export function summaryFlex(rows: Row[], now: Date, summaryUrl?: string) {
     type: "flex",
     altText: all.pct == null
       ? "สรุปสถิติมาเรียน: ยังไม่มีชั้นใดลงสถิติวันนี้"
-      : `สรุปสถิติมาเรียน: มา ${all.present}/${all.total} คน (${fmtPct(all.pct)}%) ลงแล้ว ${done.length}/${rows.length} ชั้น`,
+      : `สรุปสถิติมาเรียน: มา ${all.present}/${all.total} คน (${fmtPct(all.pct)}%) ขาด ${all.absent} คน ลงแล้ว ${done.length}/${rows.length} ชั้น`,
     contents: {
+      // mega = LINE's standard width that fits phone screens (giga overflows).
       type: "bubble", size: "mega",
       header: {
         type: "box", layout: "vertical", backgroundColor: C.brand, paddingAll: "14px", contents: [
@@ -166,13 +206,13 @@ export function summaryFlex(rows: Row[], now: Date, summaryUrl?: string) {
         ],
       },
       body: {
-        type: "box", layout: "vertical", paddingAll: "12px", contents: [
+        type: "box", layout: "vertical", paddingAll: "8px", contents: [
           kpi,
-          { type: "box", layout: "vertical", margin: "md", contents: [head, ...classRows] },
+          { type: "box", layout: "vertical", margin: "md", contents: [tableHead(), ...classRows] },
           { type: "box", layout: "vertical", margin: "sm", spacing: "xs", contents: [
-            sumRow("รวมอนุบาล", kg),
-            sumRow("รวมประถม", pri),
-            sumRow("รวมทั้งหมด", all, true),
+            dataRow("รวมอนุบาล", kg, "sub", C.brandSoft),
+            dataRow("รวมประถม", pri, "sub", C.brandSoft),
+            dataRow("รวมทั้งหมด", all, "grand"),
           ] },
           ...notes,
         ],
