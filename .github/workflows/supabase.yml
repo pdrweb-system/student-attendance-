@@ -18,6 +18,9 @@ jobs:
         with:
           version: latest
       - run: supabase link --project-ref "$PROJECT_REF"
-      - run: supabase db push
+      # The init migration was first applied by hand in the SQL Editor, so mark it
+      # as applied in the migration history (no-op once recorded).
+      - run: supabase migration repair --status applied 20261101000000
+      - run: supabase db push --linked --yes
       - run: supabase functions deploy submit-attendance --no-verify-jwt
       - run: supabase functions deploy line-webhook --no-verify-jwt
