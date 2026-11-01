@@ -19,10 +19,6 @@
       <div><label for="female">หญิงที่มา (คน)</label><input id="female" type="number" min="0" inputmode="numeric" required></div>
     </div>
     <p id="total" class="muted"></p>
-    <label for="name">ชื่อผู้กรอก (ไม่บังคับ)</label>
-    <input id="name" maxlength="60">
-    <label for="pin">PIN ครู</label>
-    <input id="pin" type="password" autocomplete="off" required>
     <p><button id="submit" type="submit">บันทึก</button></p>
     <p class="muted">ส่งซ้ำได้ ระบบใช้ข้อมูลที่ส่งล่าสุด</p>
   </form>
@@ -33,9 +29,6 @@ import { SUPABASE_ANON_KEY as KEY } from "./config.js";
 $("#nav").innerHTML = nav("index");
 
 let rows = [], status = null;
-const store = (() => { try { return sessionStorage; } catch { return { getItem(){}, setItem(){} }; } })();
-$("#pin").value = store.getItem("pin") || "";
-$("#name").value = store.getItem("name") || "";
 
 async function refresh() {
   const cid = Number($("#cls").value) || null;
@@ -73,12 +66,11 @@ $("#form").addEventListener("submit", async (e) => {
       headers: { "Content-Type": "application/json", apikey: KEY, Authorization: `Bearer ${KEY}` },
       body: JSON.stringify({
         class_id: Number($("#cls").value), male_present: Number($("#male").value),
-        female_present: Number($("#female").value), recorded_name: $("#name").value, pin: $("#pin").value,
+        female_present: Number($("#female").value),
       }),
     });
     const out = await res.json();
     if (out.ok) {
-      store.setItem("pin", $("#pin").value); store.setItem("name", $("#name").value);
       toast("บันทึกแล้ว");
     } else toast(out.message || "บันทึกไม่สำเร็จ", false);
   } catch { toast("เชื่อมต่อไม่ได้", false); }
