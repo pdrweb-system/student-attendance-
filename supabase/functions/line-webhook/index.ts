@@ -25,7 +25,7 @@ const thaiTime = (d: Date) =>
 type Row = Record<string, any>;
 
 const cell = (text: string, flex: number, opts: Row = {}) => ({
-  type: "text", text, flex, size: "sm", align: opts.align ?? "end", color: opts.color ?? "#333333",
+  type: "text", text, flex, size: "sm", align: opts.align ?? "center", color: opts.color ?? "#333333",
   weight: opts.weight ?? "regular", wrap: false,
 });
 
@@ -37,23 +37,23 @@ function summaryFlex(rows: Row[], now: Date) {
     const t = group.reduce((s, r) => s + r.total, 0);
     const p = group.reduce((s, r) => s + r.present, 0);
     return { type: "box", layout: "baseline", spacing: "sm", contents: [
-      cell(label, 3, { align: "start", weight: "bold" }), cell(String(t), 2, { weight: "bold" }),
+      cell(label, 3, { weight: "bold" }), cell(String(t), 2, { weight: "bold" }),
       cell(String(p), 2, { weight: "bold" }), cell(String(t - p), 2, { weight: "bold" }),
       cell(t ? (100 * p / t).toFixed(1) : "-", 2, { weight: "bold" }),
     ] };
   };
   const header = {
     type: "box", layout: "baseline", spacing: "sm", contents: [
-      cell("ชั้น", 3, { align: "start", weight: "bold" }), cell("ทั้งหมด", 2, { weight: "bold" }),
+      cell("ชั้น", 3, { weight: "bold" }), cell("ทั้งหมด", 2, { weight: "bold" }),
       cell("มา", 2, { weight: "bold" }), cell("ไม่มา", 2, { weight: "bold" }), cell("%", 2, { weight: "bold" }),
     ],
   };
   const lines = rows.map((r) => ({
     type: "box", layout: "baseline", spacing: "sm",
     contents: r.submitted
-      ? [cell(r.name, 3, { align: "start" }), cell(String(r.total), 2), cell(String(r.present), 2),
+      ? [cell(r.name, 3, {}), cell(String(r.total), 2), cell(String(r.present), 2),
          cell(String(r.absent), 2), cell(r.pct == null ? "-" : String(r.pct), 2)]
-      : [cell(r.name, 3, { align: "start", color: "#999999" }), cell(String(r.total), 2, { color: "#999999" }),
+      : [cell(r.name, 3, { color: "#999999" }), cell(String(r.total), 2, { color: "#999999" }),
          cell("ยังไม่ลง", 5, { color: "#c0392b" })],
   }));
   return {

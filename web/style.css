@@ -24,8 +24,7 @@ button:disabled { opacity:.5; cursor:not-allowed; }
 .inline { display:flex; gap:8px; flex-wrap:wrap; align-items:center; }
 .inline input, .inline select { width:auto; flex:1 1 120px; }
 table { width:100%; border-collapse:collapse; font-size:.95rem; }
-th, td { padding:8px; border-bottom:1px solid var(--line); text-align:right; }
-th:first-child, td:first-child { text-align:left; }
+th, td { padding:8px; border-bottom:1px solid var(--line); text-align:center; }
 tfoot td { font-weight:700; }
 .muted { color:var(--muted); font-size:.85rem; }
 .pending { color:#c0392b; }
