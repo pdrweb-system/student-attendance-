@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="th">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>สรุปสถิติมาเรียน</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header><h1>สรุปสถิติมาเรียน</h1><small>โรงเรียนวัดปรีดาราม (มณีศิริวรรณ)</small></header>
+<div id="nav"></div>
+<main>
+  <div class="card">
+    <div class="inline"><label for="date" style="margin:0">วันที่</label><input id="date" type="date"></div>
+    <h2 id="title" style="font-size:1.05rem"></h2>
+    <div class="scroll"><table>
+      <thead><tr><th>ชั้น</th><th>ทั้งหมด</th><th>มา</th><th>ไม่มา</th><th>ร้อยละ</th></tr></thead>
+      <tbody id="body"></tbody><tfoot id="foot"></tfoot>
+    </table></div>
+    <p class="muted" id="note"></p>
+  </div>
+</main>
+<script type="module">
+import { sb, $, esc, nav, toast, fmtDate } from "./common.js";
+$("#nav").innerHTML = nav("summary");
+
+async function load() {
+  const date = $("#date").value || null;
+  const { data, error } = await sb.rpc("daily_summary", { p_date: date });
+  if (error) return toast("โหลดข้อมูลไม่สำเร็จ", false);
+  if (!$("#date").value) {
+    const { data: t } = await sb.rpc("th_today"); $("#date").value = t;
+  }
+  $("#title").textContent = fmtDate($("#date").value);
+  $("#body").innerHTML = data.map((r) => r.submitted
+    ? `<tr><td>${esc(r.name)}</td><td>${r.total}</td><td>${r.present}</td><td>${r.absent}</td><td>${r.pct ?? "-"}</td></tr>`
+    : `<tr><td>${esc(r.name)}</td><td>${r.total}</td><td colspan="3" class="pending">ยังไม่ลง</td></tr>`).join("");
+  const sub = data.filter((r) => r.submitted);
+  const tot = sub.reduce((s, r) => s + r.total, 0), pres = sub.reduce((s, r) => s + r.present, 0);
+  $("#foot").innerHTML = `<tr><td>รวม</td><td>${tot}</td><td>${pres}</td><td>${tot - pres}</td><td>${tot ? (100 * pres / tot).toFixed(1) : "-"}</td></tr>`;
+  $("#note").textContent = `รวมเฉพาะชั้นที่ลงแล้ว ${sub.length}/${data.length} ชั้น`;
+}
+$("#date").addEventListener("change", load);
+load();
+</script>
+</body>
+</html>
