@@ -1,6 +1,11 @@
-:root { --bg:#f6f8f6; --fg:#1d2a1d; --card:#fff; --line:#d6ded6; --green:#1a5e1a; --muted:#667; --ok:#e6f4e6; --warn:#fff4d6; --err:#fde4e1; }
+:root { --bg:#f6f8f6; --fg:#1d2a1d; --card:#fff; --line:#d6ded6; --green:#1a5e1a; --muted:#667; --ok:#e6f4e6; --warn:#fff4d6; --err:#fde4e1;
+  /* summary table: blue header, purple / yellow / pink total rows */
+  --bad:#c0392b; --head-bg:#d6e9fb; --head-fg:#1f4e79; --kg-bg:#ede4f7; --pri-bg:#fff3bf; --all-bg:#fce4ec;
+  --rule-cell:#dde3e9; --rule-group:#b9c4cf; }
 @media (prefers-color-scheme: dark) {
-  :root { --bg:#121712; --fg:#e8efe8; --card:#1b231b; --line:#2f3b2f; --green:#5fbf5f; --muted:#9aa; --ok:#1d3a1d; --warn:#3d3414; --err:#472220; }
+  :root { --bg:#121712; --fg:#e8efe8; --card:#1b231b; --line:#2f3b2f; --green:#5fbf5f; --muted:#9aa; --ok:#1d3a1d; --warn:#3d3414; --err:#472220;
+    --bad:#ff8a7a; --head-bg:#1d3550; --head-fg:#cfe3f7; --kg-bg:#352b45; --pri-bg:#433b17; --all-bg:#4a2838;
+    --rule-cell:#33404c; --rule-group:#5a6b7d; }
 }
 * { box-sizing: border-box; }
 body { margin:0; font-family: "Sarabun","Noto Sans Thai",system-ui,sans-serif; background:var(--bg); color:var(--fg); line-height:1.5; }
@@ -27,13 +32,20 @@ table { width:100%; border-collapse:collapse; font-size:.95rem; }
 th, td { padding:8px; border-bottom:1px solid var(--line); text-align:center; }
 tfoot td { font-weight:700; }
 /* summary table: เต็ม | มา | ขาด groups split by a vertical rule */
-.att th, .att td { padding:6px 4px; }
-.att thead th { background:var(--ok); }
-.att .gs { border-left:1px solid var(--line); }
+/* full grid: light line around every cell, darker line between the เต็ม | มา | ขาด groups */
+.att { border:1px solid var(--rule-group); }
+.att th, .att td { padding:6px 4px; border:1px solid var(--rule-cell); }
+.att .gs { border-left:1px solid var(--rule-group); }
+.att thead th { background:var(--head-bg); color:var(--head-fg); }
+.att thead tr:first-child th { border-bottom-color:var(--rule-cell); }
+.att tbody tr:first-child td { border-top:1px solid var(--rule-group); }
 .att .tot-t { font-weight:700; }
 .att th.present, .att .tot-p { color:var(--green); font-weight:700; }
-.att th.absent, .att .tot-a { color:#c0392b; font-weight:700; }
-.att tr.grand td { background:var(--ok); }
+.att th.absent, .att .tot-a { color:var(--bad); font-weight:700; }
+.att tr.kg td { background:var(--kg-bg); }
+.att tr.pri td { background:var(--pri-bg); }
+.att tr.grand td { background:var(--all-bg); }
+.att tfoot tr:first-child td { border-top:1px solid var(--rule-group); }
 @media (max-width:480px) {
   main:has(.att) { padding:10px 8px; }
   .card:has(.att) { padding:12px 8px; }

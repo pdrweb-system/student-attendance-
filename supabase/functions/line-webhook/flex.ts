@@ -13,12 +13,9 @@ export const thaiTime = (d: Date) =>
   new Intl.DateTimeFormat("th-TH", { timeZone: "Asia/Bangkok", hour: "2-digit", minute: "2-digit" }).format(d);
 
 const C = {
-  brand: "#1a5e1a",     // school green (header, grand total, progress bar)
-  brandSoft: "#EAF4EA", // light green panels
-  zebra: "#F6F9F6",
+  brand: "#1a5e1a",     // school green (header bar, progress bar)
+  brandSoft: "#EAF4EA", // light green KPI panel
   track: "#D5E6D5",
-  grid: "#D9E4D9",      // vertical rules between column groups
-  gridOnBrand: "#5F8F5F",
   text: "#1F2A1F",
   sub: "#5F6B5F",
   muted: "#A3ABA3",
@@ -28,6 +25,18 @@ const C = {
   badSoft: "#FDECEA",
   white: "#FFFFFF",
   headerSub: "#CFE8CF",
+  // table
+  headBg: "#D6E9FB",    // หัวตาราง: ฟ้า
+  headText: "#1F4E79",
+  headSub: "#4A6075",
+  kgBg: "#EDE4F7",      // รวมอนุบาล: ม่วง
+  kgRule: "#D6C8EA",
+  priBg: "#FFF3BF",     // รวมประถม: เหลือง
+  priRule: "#E8D98F",
+  allBg: "#FCE4EC",     // รวมทั้งหมด: ชมพูอ่อน
+  allRule: "#EDC3D1",
+  ruleGroup: "#B9C4CF", // table border and rules between เต็ม | มา | ขาด
+  ruleCell: "#DDE3E9",  // rules between cells
 };
 
 const fmtPct = (p: number | null) => (p == null ? "-" : p.toFixed(1));
@@ -47,31 +56,58 @@ function agg(group: Row[]): Agg {
     pct: total ? (100 * present) / total : null };
 }
 
-// LINE limits one bubble to 30 KB of JSON; with 8 classes this card is ~23 KB.
-// Table columns, identical in every row so they line up:
-//   ชั้น | เต็ม: ชาย หญิง รวม | มา: ชาย หญิง รวม | ขาด: ชาย หญิง รวม
-// Flex units: name 5 + 9 numbers x 3 = 32, plus a 1px rule between the groups.
-// The name column is narrow, so the total rows put "รวม" on its own line.
-// Class rows use a fixed height so the vertical rules run unbroken from row to row;
-// the total rows have no fixed height, so they grow to fit their two-line label
-// (Thai text is drawn with taller lines on phones than in a desktop preview).
-const NAME = 5, NUM = 3, GROUP = 3 * NUM;
+// LINE limits one bubble to 30 KB of JSON; with 8 classes this card is ~27 KB.
+//
+// Table: every number sits in its own cell, with a light rule between cells and a darker
+// rule between the groups:  ชั้น | เต็ม: ชาย หญิง รวม | มา: ชาย หญิง รวม | ขาด: ชาย หญิง รวม
+// The class-name column has a fixed width and every row draws the same 9px of rules
+// (rows that draw fewer add invisible ones), so all rows split the remaining width the
+// same way and the vertical rules line up from the header to the last row.
+// Class rows have a fixed height so the rules run unbroken; total rows grow to fit their
+// two-line label (Thai text is drawn with taller lines on phones).
+const NAME_W = "42px", NUM = 3, GROUP = 3 * NUM;
 const ROW_H = "26px";
 
-type CellOpt = { color?: string; bold?: boolean; size?: string };
+type CellOpt = { color?: string; bold?: boolean; size?: string; fit?: boolean };
 // shrink-to-fit: if a phone's Thai font is wider than expected, LINE shrinks the text
-// instead of cutting it off with "…" (best effort; ignored by very old LINE versions).
+// instead of cutting it off with "…" (best effort). Left off where the text can't
+// overflow (1–2 digit class numbers) to keep the message small.
 const cell = (text: string, flex: number, o: CellOpt = {}) => ({
-  type: "text", text, flex, size: o.size ?? "xs", align: "center", gravity: "center",
-  color: o.color ?? C.text, adjustMode: "shrink-to-fit", ...(o.bold ? { weight: "bold" } : {}),
+  type: "text", text, flex, size: o.size ?? "xs", align: "center", gravity: "center", color: o.color ?? C.text,
+  ...(o.fit === false ? {} : { adjustMode: "shrink-to-fit" }), ...(o.bold ? { weight: "bold" } : {}),
 });
-const rule = (color: string = C.grid) => ({ type: "separator", color });
+const rule = (color: string) => ({ type: "separator", color });
 
-const tableRow = (contents: Row[], bg?: string, height: string | null = ROW_H) => ({
-  type: "box", layout: "horizontal", cornerRadius: "6px",
-  ...(height ? { height } : { paddingTop: "5px", paddingBottom: "5px" }),
-  contents, ...(bg ? { backgroundColor: bg } : {}),
+// Fixed-width first column. A label containing "\n" is shown on two lines.
+const nameCell = (label: string, o: { color?: string; size?: string; bold?: boolean } = {}) => ({
+  type: "box", layout: "vertical", width: NAME_W, flex: 0, justifyContent: "center", contents: [{
+    type: "text", text: label, size: o.size ?? "xs", color: o.color ?? C.text, align: "center",
+    ...(o.bold === false ? {} : { weight: "bold" }),
+    ...(label.includes("\n") ? { wrap: true } : { adjustMode: "shrink-to-fit" }),
+  }],
 });
+
+type GridOpt = { bg?: string; cellRule?: string; height?: string | null; boxed?: boolean; ghosts?: number };
+// name | group | group | group with rules between them. `ghosts` adds invisible rules so a
+// row that draws fewer rules (the "ยังไม่ลง" badge spans several cells) still lines up.
+function gridRow(name: Row, groups: Row[][], o: GridOpt = {}) {
+  const contents: Row[] = [name];
+  for (const g of groups) {
+    contents.push(rule(C.ruleGroup));
+    g.forEach((c, i) => {
+      if (i) contents.push(rule(o.cellRule ?? C.ruleCell));
+      contents.push(c);
+    });
+  }
+  for (let i = 0; i < (o.ghosts ?? 0); i++) contents.push(rule(o.bg ?? C.white));
+  const height = o.height === undefined ? ROW_H : o.height;
+  return {
+    type: "box", layout: "horizontal", contents,
+    ...(height ? { height } : { paddingTop: "5px", paddingBottom: "5px" }),
+    ...(o.boxed ? { cornerRadius: "6px", borderWidth: "1px", borderColor: C.ruleGroup } : {}),
+    ...(o.bg ? { backgroundColor: o.bg } : {}),
+  };
+}
 
 // Small rounded badge centred inside a cell spanning `flex` units.
 const badge = (text: string, flex: number) => ({
@@ -85,66 +121,55 @@ const badge = (text: string, flex: number) => ({
 
 function tableHead() {
   const h = (t: string, flex: number, color: string, size = "xs") => cell(t, flex, { bold: true, size, color });
-  const sub = (totalColor: string) =>
-    [h("ชาย", NUM, C.sub, "xxs"), h("หญิง", NUM, C.sub, "xxs"), h("รวม", NUM, totalColor, "xxs")];
+  const ghost = rule(C.headBg); // invisible: group labels draw no cell rules
+  const group = (t: string, color: string) => [ghost, h(t, GROUP, color), ghost];
+  const subs = (totalColor: string) => [
+    h("ชาย", NUM, C.headSub, "xxs"), rule(C.ruleCell), h("หญิง", NUM, C.headSub, "xxs"), rule(C.ruleCell),
+    h("รวม", NUM, totalColor, "xxs"),
+  ];
   return {
-    type: "box", layout: "horizontal", backgroundColor: C.brandSoft, cornerRadius: "6px",
+    type: "box", layout: "horizontal", backgroundColor: C.headBg,
     contents: [
-      h("ชั้น", NAME, C.brand),
-      rule(),
-      { type: "box", layout: "vertical", flex: 3 * GROUP, contents: [
+      nameCell("ชั้น", { color: C.headText }),
+      rule(C.ruleGroup),
+      { type: "box", layout: "vertical", flex: 1, contents: [
         { type: "box", layout: "horizontal", height: "26px", contents: [
-          h("เต็ม", GROUP, C.sub), rule(), h("มา", GROUP, C.good), rule(), h("ขาด", GROUP, C.bad),
+          ...group("เต็ม", C.headText), rule(C.ruleGroup), ...group("มา", C.good), rule(C.ruleGroup),
+          ...group("ขาด", C.bad),
         ] },
+        rule(C.ruleCell),
         { type: "box", layout: "horizontal", height: "22px", contents: [
-          ...sub(C.sub), rule(), ...sub(C.good), rule(), ...sub(C.bad),
+          ...subs(C.headSub), rule(C.ruleGroup), ...subs(C.good), rule(C.ruleGroup), ...subs(C.bad),
         ] },
       ] },
     ],
   };
 }
 
-// kind: "class" = one class, "sub" = รวมอนุบาล/รวมประถม, "grand" = รวมทั้งหมด
-function dataRow(label: string, a: Agg, kind: "class" | "sub" | "grand", bg?: string) {
-  const grand = kind === "grand", bold = kind !== "class";
-  const fg = grand ? C.white : C.text;
-  const full = grand ? C.white : C.sub;
-  const absent = (n: number) => (grand ? C.white : n > 0 ? C.bad : fg);
-  const r = () => rule(grand ? C.gridOnBrand : C.grid);
-  const name = kind === "class"
-    ? cell(label, NAME, { bold: true, color: fg })
-    // two lines, e.g. "รวม\nอนุบาล" (wrapped text can't use shrink-to-fit)
-    : { type: "text", text: label, flex: NAME, size: "xxs", weight: "bold", color: fg,
-      align: "center", gravity: "center", wrap: true };
-  return tableRow([
-    name,
-    r(),
-    cell(String(a.tm), NUM, { bold, color: full }),
-    cell(String(a.tf), NUM, { bold, color: full }),
-    cell(String(a.total), NUM, { bold: true, color: full }),
-    r(),
-    cell(String(a.mp), NUM, { bold, color: fg }),
-    cell(String(a.fp), NUM, { bold, color: fg }),
-    cell(String(a.present), NUM, { bold: true, color: grand ? C.white : C.good }),
-    r(),
-    cell(String(a.ma), NUM, { bold, color: absent(a.ma) }),
-    cell(String(a.fa), NUM, { bold, color: absent(a.fa) }),
-    cell(String(a.absent), NUM, { bold: true, color: absent(a.absent) }),
-  ], grand ? C.brand : bg, kind === "class" ? ROW_H : null);
+// เต็ม / มา / ขาด cells; the รวม cell of each group is bold.
+function numberGroups(a: Agg, bold: boolean, fit: boolean) {
+  const n = (v: number, color: string, b = bold) => cell(String(v), NUM, { color, bold: b, fit });
+  const absent = (v: number) => (v > 0 ? C.bad : C.text);
+  return [
+    [n(a.tm, C.sub), n(a.tf, C.sub), n(a.total, C.sub, true)],
+    [n(a.mp, C.text), n(a.fp, C.text), n(a.present, C.good, true)],
+    [n(a.ma, absent(a.ma)), n(a.fa, absent(a.fa)), n(a.absent, absent(a.absent), true)],
+  ];
 }
 
-function pendingRow(r: Row, bg?: string) {
+const classRow = (r: Row) => gridRow(nameCell(r.name), numberGroups(agg([r]), false, false));
+
+function pendingRow(r: Row) {
   const tm = Number(r.total_male) || 0, tf = Number(r.total_female) || 0;
-  return tableRow([
-    cell(r.name, NAME, { color: C.muted }),
-    rule(),
-    cell(String(tm), NUM, { color: C.muted }),
-    cell(String(tf), NUM, { color: C.muted }),
-    cell(String(tm + tf), NUM, { color: C.muted, bold: true }),
-    rule(),
-    badge("ยังไม่ลง", 2 * GROUP),
-  ], bg);
+  const n = (v: number, b = false) => cell(String(v), NUM, { color: C.muted, bold: b, fit: false });
+  // The badge covers มา + ขาด: 5 invisible rules stand in for the 4 cell rules + 1 group rule it hides.
+  return gridRow(nameCell(r.name, { color: C.muted, bold: false }),
+    [[n(tm), n(tf), n(tm + tf, true)], [badge("ยังไม่ลง", 2 * GROUP)]], { ghosts: 5 });
 }
+
+// Coloured total row; its cell rules are a darker shade of the row colour so they stay visible.
+const totalRow = (label: string, a: Agg, bg: string, cellRule: string) =>
+  gridRow(nameCell(label, { size: "xxs" }), numberGroups(a, true, true), { bg, cellRule, height: null, boxed: true });
 
 const kv = (k: string, v: string, color: string = C.text) => ({
   type: "box", layout: "baseline", contents: [
@@ -194,10 +219,19 @@ export function summaryFlex(rows: Row[], now: Date, summaryUrl?: string) {
     ],
   };
 
-  const classRows = rows.map((r, i) => {
-    const bg = i % 2 ? C.zebra : undefined;
-    return r.submitted ? dataRow(r.name, agg([r]), "class", bg) : pendingRow(r, bg);
-  });
+  const classRows = rows.map((r) => (r.submitted ? classRow(r) : pendingRow(r)));
+  // header + class rows in one bordered table; a line under every row
+  const table = {
+    type: "box", layout: "vertical", margin: "md", borderWidth: "1px", borderColor: C.ruleGroup, cornerRadius: "6px",
+    contents: [tableHead(), rule(C.ruleGroup), ...classRows.flatMap((row, i) => (i ? [rule(C.ruleCell), row] : [row]))],
+  };
+  const totals = {
+    type: "box", layout: "vertical", margin: "sm", spacing: "xs", contents: [
+      totalRow("รวม\nอนุบาล", kg, C.kgBg, C.kgRule),
+      totalRow("รวม\nประถม", pri, C.priBg, C.priRule),
+      totalRow("รวม\nทั้งหมด", all, C.allBg, C.allRule),
+    ],
+  };
 
   // Only needed while some classes are pending; once all have submitted the grand-total row says it all.
   const notes = pending
@@ -226,12 +260,8 @@ export function summaryFlex(rows: Row[], now: Date, summaryUrl?: string) {
         type: "box", layout: "vertical", paddingTop: "8px", paddingBottom: "8px", paddingStart: "4px",
         paddingEnd: "4px", contents: [
           { type: "box", layout: "vertical", paddingStart: "4px", paddingEnd: "4px", contents: [kpi] },
-          { type: "box", layout: "vertical", margin: "md", contents: [tableHead(), ...classRows] },
-          { type: "box", layout: "vertical", margin: "sm", spacing: "xs", contents: [
-            dataRow("รวม\nอนุบาล", kg, "sub", C.brandSoft),
-            dataRow("รวม\nประถม", pri, "sub", C.brandSoft),
-            dataRow("รวม\nทั้งหมด", all, "grand"),
-          ] },
+          table,
+          totals,
           ...notes,
         ],
       },
