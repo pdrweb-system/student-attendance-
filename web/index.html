@@ -1,0 +1,91 @@
+<!doctype html>
+<html lang="th">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>ลงสถิติมาเรียน</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header><h1>ลงสถิติมาเรียนประจำวัน</h1><small>โรงเรียนวัดปรีดาราม (มณีศิริวรรณ)</small></header>
+<div id="nav"></div>
+<main>
+  <div id="banner" class="banner">กำลังโหลด…</div>
+  <form id="form" class="card">
+    <label for="cls">ชั้น</label>
+    <select id="cls" required></select>
+    <p id="current" class="muted"></p>
+    <div class="row">
+      <div><label for="male">ชายที่มา (คน)</label><input id="male" type="number" min="0" inputmode="numeric" required></div>
+      <div><label for="female">หญิงที่มา (คน)</label><input id="female" type="number" min="0" inputmode="numeric" required></div>
+    </div>
+    <p id="total" class="muted"></p>
+    <label for="name">ชื่อผู้กรอก (ไม่บังคับ)</label>
+    <input id="name" maxlength="60">
+    <label for="pin">PIN ครู</label>
+    <input id="pin" type="password" autocomplete="off" required>
+    <p><button id="submit" type="submit">บันทึก</button></p>
+    <p class="muted">ส่งซ้ำได้ ระบบใช้ข้อมูลที่ส่งล่าสุด</p>
+  </form>
+</main>
+<script type="module">
+import { sb, FUNCTIONS_URL, $, toast, getStatus, statusBanner, nav, fmtTime } from "./common.js";
+import { SUPABASE_ANON_KEY as KEY } from "./config.js";
+$("#nav").innerHTML = nav("index");
+
+let rows = [], status = null;
+const store = (() => { try { return sessionStorage; } catch { return { getItem(){}, setItem(){} }; } })();
+$("#pin").value = store.getItem("pin") || "";
+$("#name").value = store.getItem("name") || "";
+
+async function refresh() {
+  const cid = Number($("#cls").value) || null;
+  const [{ data, error }, st] = await Promise.all([sb.rpc("daily_summary"), getStatus(cid)]);
+  if (error) return toast("โหลดข้อมูลไม่สำเร็จ", false);
+  rows = data; status = st;
+  const sel = $("#cls");
+  if (!sel.options.length) sel.innerHTML = rows.map((r) => `<option value="${r.class_id}">${r.name}</option>`).join("");
+  paint();
+}
+
+function paint() {
+  const r = rows.find((x) => x.class_id === Number($("#cls").value));
+  const b = statusBanner(status);
+  $("#banner").className = "banner " + b.cls; $("#banner").textContent = b.text;
+  $("#total").textContent = r ? `นักเรียนทั้งหมด: ชาย ${r.total_male} หญิง ${r.total_female}` : "";
+  if (r?.submitted) {
+    $("#current").textContent = `ลงแล้ววันนี้ (ล่าสุด ${fmtTime(r.updated_at)} น.) — แก้ไขต่อได้`;
+    if (document.activeElement !== $("#male") && document.activeElement !== $("#female")) {
+      $("#male").value = r.male_present; $("#female").value = r.female_present;
+    }
+  } else $("#current").textContent = "ชั้นนี้ยังไม่ลงสถิติวันนี้";
+  const locked = !status.can_submit;
+  for (const el of $("#form").elements) el.disabled = locked && el.id !== "cls";
+}
+
+$("#cls").addEventListener("change", () => { $("#male").value = ""; $("#female").value = ""; refresh(); });
+
+$("#form").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const btn = $("#submit"); btn.disabled = true;
+  try {
+    const res = await fetch(`${FUNCTIONS_URL}/submit-attendance`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", apikey: KEY, Authorization: `Bearer ${KEY}` },
+      body: JSON.stringify({
+        class_id: Number($("#cls").value), male_present: Number($("#male").value),
+        female_present: Number($("#female").value), recorded_name: $("#name").value, pin: $("#pin").value,
+      }),
+    });
+    const out = await res.json();
+    if (out.ok) {
+      store.setItem("pin", $("#pin").value); store.setItem("name", $("#name").value);
+      toast("บันทึกแล้ว");
+    } else toast(out.message || "บันทึกไม่สำเร็จ", false);
+  } catch { toast("เชื่อมต่อไม่ได้", false); }
+  btn.disabled = false; refresh();
+});
+
+refresh(); setInterval(refresh, 30000);
+</script>
+</body>
+</html>

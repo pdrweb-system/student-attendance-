@@ -1,0 +1,182 @@
+<!doctype html>
+<html lang="th">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>แอดมิน</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header><h1>แอดมิน</h1><small>โรงเรียนวัดปรีดาราม (มณีศิริวรรณ)</small></header>
+<div id="nav"></div>
+<main>
+  <form id="login" class="card" hidden>
+    <label for="email">อีเมล</label><input id="email" type="email" required autocomplete="username">
+    <label for="pw">รหัสผ่าน</label><input id="pw" type="password" required autocomplete="current-password">
+    <p><button>เข้าสู่ระบบ</button></p>
+  </form>
+
+  <div id="app" hidden>
+    <div class="inline" style="margin-bottom:12px"><span id="who" class="muted"></span><button class="secondary" id="logout">ออกจากระบบ</button></div>
+    <div class="tabs" id="tabs"></div>
+
+    <section id="t-settings" class="card">
+      <h2>เปิด/ปิดระบบ และเวลาตัดรอบ</h2>
+      <label><input type="checkbox" id="accepting" style="width:auto"> เปิดรับการลงสถิติ</label>
+      <label for="closedMsg">ข้อความเมื่อปิดระบบ</label><input id="closedMsg">
+      <label for="cutoff">เวลาตัดรอบของครู (เวลาไทย)</label><input id="cutoff" type="time">
+      <p><button id="saveSettings">บันทึก</button></p>
+
+      <h2>เปิดช่วงลงเพิ่ม (เฉพาะวันนี้)</h2>
+      <div class="inline">
+        <select id="extClass"></select>
+        <select id="extMode"><option value="min">อีก (นาที)</option><option value="time">ถึงเวลา</option></select>
+        <input id="extVal" value="30">
+        <button id="addExt">เปิด</button>
+      </div>
+      <div class="scroll"><table><thead><tr><th>ชั้น</th><th>ถึง</th><th></th></tr></thead><tbody id="extList"></tbody></table></div>
+    </section>
+
+    <section id="t-enroll" class="card" hidden>
+      <h2>จำนวนนักเรียนทั้งหมด</h2>
+      <p class="muted">บันทึกจะมีผลตั้งแต่วันที่ที่เลือก (เก็บประวัติการเปลี่ยนแปลง)</p>
+      <label for="enrFrom">มีผลตั้งแต่</label><input id="enrFrom" type="date">
+      <div class="scroll"><table><thead><tr><th>ชั้น</th><th>ชาย</th><th>หญิง</th></tr></thead><tbody id="enrBody"></tbody></table></div>
+      <p><button id="saveEnr">บันทึก</button></p>
+    </section>
+
+    <section id="t-att" class="card" hidden>
+      <h2>แก้/เพิ่ม/ลบสถิติย้อนหลัง</h2>
+      <div class="inline"><input id="attDate" type="date"><button id="attLoad" class="secondary">โหลด</button></div>
+      <div class="scroll"><table><thead><tr><th>ชั้น</th><th>ชายมา</th><th>หญิงมา</th><th></th></tr></thead><tbody id="attBody"></tbody></table></div>
+    </section>
+
+    <section id="t-audit" class="card" hidden>
+      <h2>Audit log (200 รายการล่าสุด)</h2>
+      <div class="scroll"><table><thead><tr><th>เวลา</th><th>การกระทำ</th><th>ชั้น</th><th>วันที่</th><th>ก่อน → หลัง</th></tr></thead><tbody id="auditBody"></tbody></table></div>
+    </section>
+  </div>
+</main>
+<script type="module">
+import { sb, $, esc, nav, toast, getStatus } from "./common.js";
+$("#nav").innerHTML = nav("admin");
+
+const TABS = { settings: "ตั้งค่า", enroll: "จำนวนนักเรียน", att: "สถิติย้อนหลัง", audit: "Audit log" };
+let classes = [], today = null;
+
+async function boot() {
+  const { data: { session } } = await sb.auth.getSession();
+  if (!session) { $("#login").hidden = false; $("#app").hidden = true; return; }
+  const { data: adm } = await sb.from("admin_users").select("user_id").maybeSingle();
+  if (!adm) { toast("บัญชีนี้ไม่ใช่แอดมิน", false); await sb.auth.signOut(); $("#login").hidden = false; return; }
+  $("#login").hidden = true; $("#app").hidden = false;
+  $("#who").textContent = session.user.email;
+  const st = await getStatus(); today = st.today;
+  ({ data: classes } = await sb.from("classes").select("*").eq("active", true).order("sort_order"));
+  $("#tabs").innerHTML = Object.entries(TABS).map(([k, v]) => `<button data-t="${k}">${v}</button>`).join("");
+  $("#extClass").innerHTML = `<option value="">ทุกชั้น</option>` + classes.map((c) => `<option value="${c.id}">${esc(c.name)}</option>`).join("");
+  $("#enrFrom").value = today; $("#attDate").value = today;
+  show("settings");
+}
+
+function show(t) {
+  for (const k in TABS) $("#t-" + k).hidden = k !== t;
+  document.querySelectorAll("#tabs button").forEach((b) => b.classList.toggle("on", b.dataset.t === t));
+  ({ settings: loadSettings, enroll: loadEnroll, att: loadAtt, audit: loadAudit })[t]();
+}
+$("#tabs").addEventListener("click", (e) => e.target.dataset.t && show(e.target.dataset.t));
+
+$("#login").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const { error } = await sb.auth.signInWithPassword({ email: $("#email").value, password: $("#pw").value });
+  if (error) return toast("อีเมลหรือรหัสผ่านไม่ถูกต้อง", false);
+  boot();
+});
+$("#logout").addEventListener("click", async () => { await sb.auth.signOut(); boot(); });
+
+// ---- settings + extensions
+async function loadSettings() {
+  const { data: s } = await sb.from("system_settings").select("*").single();
+  $("#accepting").checked = s.accepting_submissions;
+  $("#closedMsg").value = s.closed_message ?? "";
+  $("#cutoff").value = s.teacher_cutoff_time.slice(0, 5);
+  const { data: ex } = await sb.from("submission_extensions").select("*").eq("att_date", today).gt("open_until", new Date().toISOString()).order("open_until");
+  const name = (id) => (id ? classes.find((c) => c.id === id)?.name : "ทุกชั้น");
+  $("#extList").innerHTML = (ex ?? []).map((x) => `<tr><td>${esc(name(x.class_id))}</td><td>${new Date(x.open_until).toLocaleTimeString("th-TH", { timeZone: "Asia/Bangkok", hour: "2-digit", minute: "2-digit" })}</td><td><button class="danger" data-close="${x.id}">ปิด</button></td></tr>`).join("") || `<tr><td colspan="3" class="muted">ไม่มีช่วงที่เปิดอยู่</td></tr>`;
+}
+$("#saveSettings").addEventListener("click", async () => {
+  const { error } = await sb.from("system_settings").update({
+    accepting_submissions: $("#accepting").checked, closed_message: $("#closedMsg").value,
+    teacher_cutoff_time: $("#cutoff").value, updated_at: new Date().toISOString(),
+  }).eq("id", true);
+  toast(error ? error.message : "บันทึกแล้ว", !error);
+});
+$("#addExt").addEventListener("click", async () => {
+  let until;
+  if ($("#extMode").value === "min") {
+    const m = Number($("#extVal").value); if (!(m > 0)) return toast("ระบุนาทีให้ถูกต้อง", false);
+    until = new Date(Date.now() + m * 60000);
+  } else {
+    if (!/^\d{1,2}:\d{2}$/.test($("#extVal").value)) return toast("ระบุเวลาเป็น HH:MM", false);
+    until = new Date(`${today}T${$("#extVal").value.padStart(5, "0")}:00+07:00`);
+    if (until <= new Date()) return toast("เวลาต้องเป็นอนาคต", false);
+  }
+  const { error } = await sb.from("submission_extensions").insert({
+    att_date: today, class_id: $("#extClass").value ? Number($("#extClass").value) : null, open_until: until.toISOString(),
+  });
+  toast(error ? error.message : "เปิดช่วงลงเพิ่มแล้ว", !error); loadSettings();
+});
+$("#extList").addEventListener("click", async (e) => {
+  const id = e.target.dataset.close; if (!id) return;
+  const { error } = await sb.from("submission_extensions").delete().eq("id", id);
+  toast(error ? error.message : "ปิดแล้ว", !error); loadSettings();
+});
+
+// ---- enrollment
+async function loadEnroll() {
+  const { data } = await sb.rpc("daily_summary", { p_date: $("#enrFrom").value || today });
+  $("#enrBody").innerHTML = data.map((r) => `<tr data-id="${r.class_id}"><td>${esc(r.name)}</td><td><input type="number" min="0" value="${r.total_male}"></td><td><input type="number" min="0" value="${r.total_female}"></td></tr>`).join("");
+}
+$("#enrFrom").addEventListener("change", loadEnroll);
+$("#saveEnr").addEventListener("click", async () => {
+  const rows = [...document.querySelectorAll("#enrBody tr")].map((tr) => {
+    const [m, f] = tr.querySelectorAll("input");
+    return { class_id: Number(tr.dataset.id), valid_from: $("#enrFrom").value, male: Number(m.value), female: Number(f.value) };
+  });
+  const { error } = await sb.from("class_enrollment").upsert(rows, { onConflict: "class_id,valid_from" });
+  toast(error ? error.message : "บันทึกแล้ว", !error);
+});
+
+// ---- historical attendance
+async function loadAtt() {
+  const { data } = await sb.rpc("daily_summary", { p_date: $("#attDate").value });
+  $("#attBody").innerHTML = data.map((r) => `<tr data-id="${r.class_id}"><td>${esc(r.name)} <span class="muted">(${r.total_male}/${r.total_female})</span></td><td><input type="number" min="0" value="${r.male_present ?? ""}"></td><td><input type="number" min="0" value="${r.female_present ?? ""}"></td><td class="inline"><button data-save>บันทึก</button>${r.submitted ? `<button class="danger" data-del>ลบ</button>` : ""}</td></tr>`).join("");
+}
+$("#attLoad").addEventListener("click", loadAtt);
+$("#attDate").addEventListener("change", loadAtt);
+$("#attBody").addEventListener("click", async (e) => {
+  const tr = e.target.closest("tr"); if (!tr) return;
+  const class_id = Number(tr.dataset.id), att_date = $("#attDate").value;
+  if (e.target.dataset.save !== undefined) {
+    const [m, f] = tr.querySelectorAll("input");
+    if (m.value === "" || f.value === "") return toast("กรอกจำนวนให้ครบ", false);
+    const { error } = await sb.from("attendance").upsert({ class_id, att_date, male_present: Number(m.value), female_present: Number(f.value) }, { onConflict: "class_id,att_date" });
+    toast(error ? error.message : "บันทึกแล้ว", !error);
+  } else if (e.target.dataset.del !== undefined) {
+    if (!confirm("ลบข้อมูลของชั้นนี้ในวันที่เลือก?")) return;
+    const { error } = await sb.from("attendance").delete().match({ class_id, att_date });
+    toast(error ? error.message : "ลบแล้ว", !error);
+  } else return;
+  loadAtt();
+});
+
+// ---- audit
+async function loadAudit() {
+  const { data } = await sb.from("admin_audit_log").select("*").order("at", { ascending: false }).limit(200);
+  const brief = (o) => (o ? `${o.male_present ?? o.male ?? ""}/${o.female_present ?? o.female ?? ""}` : "—");
+  $("#auditBody").innerHTML = (data ?? []).map((l) => `<tr><td>${new Date(l.at).toLocaleString("th-TH", { timeZone: "Asia/Bangkok" })}</td><td>${esc(l.action)}</td><td>${l.class_id ?? ""}</td><td>${l.att_date ?? ""}</td><td>${brief(l.old)} → ${brief(l.new)}</td></tr>`).join("");
+}
+
+boot();
+</script>
+</body>
+</html>

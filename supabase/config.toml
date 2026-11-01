@@ -1,0 +1,9 @@
+project_id = "student-attendance"
+
+# Both functions authenticate by themselves (teacher PIN / LINE signature),
+# so the gateway JWT check is turned off.
+[functions.submit-attendance]
+verify_jwt = false
+
+[functions.line-webhook]
+verify_jwt = false
