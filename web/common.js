@@ -32,10 +32,12 @@ export function statusBanner(st) {
   return { cls: "ok", text: `ลงสถิติได้ถึง ${fmtTime(st.deadline)} น.${st.extended ? " (แอดมินเปิดช่วงลงเพิ่ม)" : ""}` };
 }
 
+// Teacher pages and the admin page are separate: the teacher nav has no link to
+// admin.html, and the admin page has no link back to the teacher pages.
 export function nav(active) {
+  if (active === "admin") return "";
   return `<nav>
     <a href="index.html" class="${active === "index" ? "on" : ""}">ลงสถิติ</a>
     <a href="summary.html" class="${active === "summary" ? "on" : ""}">สรุปวันนี้</a>
-    <a href="admin.html" class="${active === "admin" ? "on" : ""}">แอดมิน</a>
   </nav>`;
 }
