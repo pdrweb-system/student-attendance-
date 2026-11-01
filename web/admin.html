@@ -11,8 +11,8 @@
 <div id="nav"></div>
 <main>
   <form id="login" class="card" hidden>
-    <label for="email">อีเมล</label><input id="email" type="email" required autocomplete="username">
     <label for="pw">รหัสผ่าน</label><input id="pw" type="password" required autocomplete="current-password">
+    <input type="hidden" id="email" autocomplete="username">
     <p><button>เข้าสู่ระบบ</button></p>
   </form>
 
@@ -59,6 +59,7 @@
 </main>
 <script type="module">
 import { sb, $, esc, nav, toast, getStatus } from "./common.js";
+import { ADMIN_EMAIL } from "./config.js";
 $("#nav").innerHTML = nav("admin");
 
 const TABS = { settings: "ตั้งค่า", enroll: "จำนวนนักเรียน", att: "สถิติย้อนหลัง", audit: "Audit log" };
@@ -88,8 +89,8 @@ $("#tabs").addEventListener("click", (e) => e.target.dataset.t && show(e.target.
 
 $("#login").addEventListener("submit", async (e) => {
   e.preventDefault();
-  const { error } = await sb.auth.signInWithPassword({ email: $("#email").value, password: $("#pw").value });
-  if (error) return toast("อีเมลหรือรหัสผ่านไม่ถูกต้อง", false);
+  const { error } = await sb.auth.signInWithPassword({ email: ADMIN_EMAIL, password: $("#pw").value });
+  if (error) return toast("รหัสผ่านไม่ถูกต้อง", false);
   boot();
 });
 $("#logout").addEventListener("click", async () => { await sb.auth.signOut(); boot(); });
