@@ -58,8 +58,8 @@ async function load() {
       `<td colspan="7" class="gs pending">ยังไม่ลง</td></tr>`).join("");
   const isKg = (r) => r.name.startsWith("อ."), isPri = (r) => r.name.startsWith("ป.");
   $("#foot").innerHTML =
-    `<tr><td>รวมอนุบาล</td>${cells(agg(done.filter(isKg)))}</tr>` +
-    `<tr><td>รวมประถม</td>${cells(agg(done.filter(isPri)))}</tr>` +
+    `<tr class="kg"><td>รวมอนุบาล</td>${cells(agg(done.filter(isKg)))}</tr>` +
+    `<tr class="pri"><td>รวมประถม</td>${cells(agg(done.filter(isPri)))}</tr>` +
     `<tr class="grand"><td>รวมทั้งหมด</td>${cells(agg(done))}</tr>`;
   $("#note").textContent = `รวมเฉพาะชั้นที่ลงแล้ว ${done.length}/${data.length} ชั้น`;
 }
