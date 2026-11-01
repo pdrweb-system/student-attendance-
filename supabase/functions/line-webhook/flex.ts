@@ -33,8 +33,8 @@ const C = {
   kgRule: "#D6C8EA",
   priBg: "#FFF3BF",     // รวมประถม: เหลือง
   priRule: "#E8D98F",
-  allBg: "#FCE4EC",     // รวมทั้งหมด: ชมพูอ่อน
-  allRule: "#EDC3D1",
+  allBg: "#E2E5E9",     // รวมทั้งหมด: เทา
+  allRule: "#C5CBD2",
   ruleGroup: "#B9C4CF", // table border and rules between เต็ม | มา | ขาด
   ruleCell: "#DDE3E9",  // rules between cells
 };
