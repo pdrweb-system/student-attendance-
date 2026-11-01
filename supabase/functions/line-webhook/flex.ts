@@ -47,7 +47,7 @@ const cell = (text: string, flex: number, o: { color?: string; bold?: boolean; s
 
 const tableRow = (contents: Row[], bg?: string) => ({
   type: "box", layout: "horizontal", contents,
-  paddingTop: "7px", paddingBottom: "7px", paddingStart: "4px", paddingEnd: "4px", cornerRadius: "6px",
+  paddingTop: "5px", paddingBottom: "5px", paddingStart: "2px", paddingEnd: "2px", cornerRadius: "6px",
   ...(bg ? { backgroundColor: bg } : {}),
 });
 
@@ -63,8 +63,8 @@ const badge = (text: string, flex: number) => ({
 
 const kv = (k: string, v: string, color: string = C.text) => ({
   type: "box", layout: "baseline", contents: [
-    { type: "text", text: k, size: "xs", color: C.sub },
-    { type: "text", text: v, size: "sm", weight: "bold", align: "end", color },
+    { type: "text", text: k, size: "xs", color: C.sub, flex: 0 },
+    { type: "text", text: v, size: "sm", weight: "bold", align: "end", color, flex: 1 },
   ],
 });
 
@@ -89,15 +89,15 @@ export function summaryFlex(rows: Row[], now: Date, summaryUrl?: string) {
   const schoolTotal = rows.reduce((s, r) => s + r.total, 0);
 
   const kpi = {
-    type: "box", layout: "vertical", backgroundColor: C.brandSoft, cornerRadius: "12px", paddingAll: "14px",
+    type: "box", layout: "vertical", backgroundColor: C.brandSoft, cornerRadius: "12px", paddingAll: "12px",
     contents: [
-      { type: "box", layout: "horizontal", alignItems: "center", spacing: "lg", contents: [
-        { type: "box", layout: "vertical", flex: 5, contents: [
+      { type: "box", layout: "horizontal", alignItems: "center", spacing: "md", contents: [
+        { type: "box", layout: "vertical", flex: 1, contents: [
           { type: "text", text: "มาเรียนวันนี้", size: "xs", color: C.sub },
-          { type: "text", text: all.pct == null ? "-" : `${fmtPct(all.pct)}%`, size: "3xl", weight: "bold",
+          { type: "text", text: all.pct == null ? "-" : `${fmtPct(all.pct)}%`, size: "xxl", weight: "bold",
             color: all.pct == null ? C.muted : C.brand },
         ] },
-        { type: "box", layout: "vertical", flex: 6, spacing: "xs", contents: [
+        { type: "box", layout: "vertical", flex: 1, spacing: "xs", contents: [
           kv("มา", `${all.present} คน`, C.good),
           kv("ไม่มา", `${all.absent} คน`, all.absent ? C.bad : C.text),
           kv("ลงแล้ว", `${done.length}/${rows.length} ชั้น`, pending ? C.warn : C.good),
@@ -145,10 +145,11 @@ export function summaryFlex(rows: Row[], now: Date, summaryUrl?: string) {
     ], grand ? C.brand : C.brandSoft);
   };
 
-  const notes = [
-    ...(pending ? ["* ยอดรวมนับเฉพาะชั้นที่ลงแล้ว"] : []),
-    `นักเรียนทั้งโรงเรียน ${schoolTotal} คน`,
-  ].join(" · ");
+  // Only needed while some classes are pending; once all have submitted the grand-total row says it all.
+  const notes = pending
+    ? [{ type: "text", text: `* ยอดรวมนับเฉพาะชั้นที่ลงแล้ว · นักเรียนทั้งโรงเรียน ${schoolTotal} คน`,
+      size: "xxs", color: C.sub, wrap: true, margin: "sm" }]
+    : [];
 
   return {
     type: "flex",
@@ -156,28 +157,28 @@ export function summaryFlex(rows: Row[], now: Date, summaryUrl?: string) {
       ? "สรุปสถิติมาเรียน: ยังไม่มีชั้นใดลงสถิติวันนี้"
       : `สรุปสถิติมาเรียน: มา ${all.present}/${all.total} คน (${fmtPct(all.pct)}%) ลงแล้ว ${done.length}/${rows.length} ชั้น`,
     contents: {
-      type: "bubble", size: "giga",
+      type: "bubble", size: "mega",
       header: {
-        type: "box", layout: "vertical", backgroundColor: C.brand, paddingAll: "16px", contents: [
+        type: "box", layout: "vertical", backgroundColor: C.brand, paddingAll: "14px", contents: [
           { type: "text", text: "สรุปสถิติมาเรียน", color: C.white, weight: "bold", size: "xl" },
           { type: "text", text: SCHOOL, color: C.headerSub, size: "xs", wrap: true },
-          { type: "text", text: `📅 ${thaiDate(now)}`, color: C.white, size: "sm", margin: "md" },
+          { type: "text", text: `📅 ${thaiDate(now)}`, color: C.white, size: "xs", margin: "sm", wrap: true },
         ],
       },
       body: {
-        type: "box", layout: "vertical", paddingAll: "14px", contents: [
+        type: "box", layout: "vertical", paddingAll: "12px", contents: [
           kpi,
-          { type: "box", layout: "vertical", margin: "lg", contents: [head, ...classRows] },
-          { type: "box", layout: "vertical", margin: "md", spacing: "xs", contents: [
+          { type: "box", layout: "vertical", margin: "md", contents: [head, ...classRows] },
+          { type: "box", layout: "vertical", margin: "sm", spacing: "xs", contents: [
             sumRow("รวมอนุบาล", kg),
             sumRow("รวมประถม", pri),
             sumRow("รวมทั้งหมด", all, true),
           ] },
-          { type: "text", text: notes, size: "xxs", color: C.sub, wrap: true, margin: "md" },
+          ...notes,
         ],
       },
       footer: {
-        type: "box", layout: "vertical", spacing: "sm", paddingAll: "12px", contents: [
+        type: "box", layout: "vertical", spacing: "xs", paddingAll: "10px", contents: [
           ...(summaryUrl
             ? [{ type: "button", style: "primary", color: C.brand, height: "sm",
               action: { type: "uri", label: "ดูสรุปบนเว็บ", uri: summaryUrl } }]
