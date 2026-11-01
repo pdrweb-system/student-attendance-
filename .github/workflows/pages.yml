@@ -29,6 +29,7 @@ jobs:
           export const SUPABASE_URL = "${{ vars.SUPABASE_URL }}";
           export const SUPABASE_ANON_KEY = "${{ vars.SUPABASE_ANON_KEY }}";
           export const ADMIN_EMAIL = "${{ vars.ADMIN_EMAIL }}";
+          export const LIFF_ID = "${{ vars.LIFF_ID }}";
           EOF
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3

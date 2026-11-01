@@ -60,3 +60,10 @@ tfoot td { font-weight:700; }
 .tabs button { background:transparent; color:var(--green); border:1px solid var(--green); }
 .tabs button.on { background:var(--green); color:#fff; }
 .scroll { overflow-x:auto; }
+/* teacher page: shown after saving when the browser won't let the page close itself */
+.done { text-align:center; }
+.done .done-icon { font-size:3rem; line-height:1; margin-top:8px; }
+.done h2 { margin:8px 0 4px; color:var(--green); }
+.done button { width:100%; }
+/* SweetAlert2 loading spinner in the school green (SweetAlert injects its own CSS, so be more specific) */
+div.swal2-popup .swal2-loader { border-color:#1a5e1a transparent #1a5e1a transparent; }

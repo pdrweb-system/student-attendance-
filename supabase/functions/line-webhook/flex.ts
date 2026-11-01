@@ -301,7 +301,9 @@ const timeLeft = (ms: number) => {
 };
 
 // Who has submitted today, whether teachers can still submit, and buttons to the web pages.
-export function checkFlex(st: Status, rows: Row[], now: Date, siteUrl?: string) {
+// teacherUrl: the LIFF link to the teacher page when a LIFF app is set up (lets the page close
+// itself after saving); otherwise the button opens the site directly.
+export function checkFlex(st: Status, rows: Row[], now: Date, siteUrl?: string, teacherUrl?: string) {
   const base = siteUrl ? siteUrl.replace(/\/?$/, "/") : undefined;
   const done = rows.filter((r) => r.submitted);
   const waiting = rows.filter((r) => !r.submitted);
@@ -377,7 +379,7 @@ export function checkFlex(st: Status, rows: Row[], now: Date, siteUrl?: string) 
     ? [
       ...(canSubmit
         ? [{ type: "button", style: "primary", color: C.brand, height: "sm", flex: 1,
-          action: { type: "uri", label: "ลงสถิติ", uri: base } }]
+          action: { type: "uri", label: "ลงสถิติ", uri: teacherUrl ?? base } }]
         : []),
       { type: "button", style: canSubmit ? "secondary" : "primary", color: canSubmit ? C.brandSoft : C.brand,
         height: "sm", flex: 1, action: { type: "uri", label: "ดูสรุป", uri: `${base}summary.html` } },

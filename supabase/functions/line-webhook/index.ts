@@ -37,6 +37,9 @@ Deno.serve(async (req) => {
   const supabase = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
   const siteUrl = Deno.env.get("SITE_URL") ?? "";
   const summaryUrl = siteUrl ? siteUrl.replace(/\/?$/, "/") + "summary.html" : undefined;
+  // optional LIFF app for the teacher page (opened this way, the page can close itself after saving)
+  const liffId = Deno.env.get("LIFF_ID");
+  const teacherUrl = liffId ? `https://liff.line.me/${liffId}` : undefined;
   const events: Row[] = JSON.parse(raw).events ?? [];
 
   for (const ev of events) {
@@ -54,7 +57,7 @@ Deno.serve(async (req) => {
         const [st, sum] = await Promise.all([supabase.rpc("submit_status"), supabase.rpc("daily_summary")]);
         if (st.error) throw st.error;
         if (sum.error) throw sum.error;
-        await reply(ev.replyToken, [checkFlex(st.data, sum.data, now, siteUrl || undefined)], accessToken);
+        await reply(ev.replyToken, [checkFlex(st.data, sum.data, now, siteUrl || undefined, teacherUrl)], accessToken);
       }
     } catch (e) {
       console.error(e);
