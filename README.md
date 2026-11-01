@@ -11,7 +11,7 @@ GitHub Pages (`/web`) + Supabase (Postgres/RLS, Edge Functions, Auth) + LINE Rep
    ```
 3. ตั้ง secrets ของ Edge Functions (ห้าม commit):
    ```bash
-   supabase secrets set TEACHER_PIN=... LINE_CHANNEL_SECRET=... LINE_CHANNEL_ACCESS_TOKEN=... SITE_URL=https://<org>.github.io/<repo>/
+   supabase secrets set LINE_CHANNEL_SECRET=... LINE_CHANNEL_ACCESS_TOKEN=... SITE_URL=https://<org>.github.io/<repo>/
    ```
 4. GitHub → Settings
    - Secrets: `SUPABASE_ACCESS_TOKEN`, `SUPABASE_PROJECT_REF`, `SUPABASE_DB_PASSWORD`
