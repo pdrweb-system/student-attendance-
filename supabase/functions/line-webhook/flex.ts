@@ -47,12 +47,13 @@ function agg(group: Row[]): Agg {
     pct: total ? (100 * present) / total : null };
 }
 
-// LINE limits one bubble to 30 KB of JSON; with 8 classes this card is ~21 KB.
+// LINE limits one bubble to 30 KB of JSON; with 8 classes this card is ~23 KB.
 // Table columns, identical in every row so they line up:
-//   ชั้น | เต็ม: ชาย หญิง | มา: ชาย หญิง รวม | ขาด: ชาย หญิง รวม
-// Flex units: name 7 + 8 numbers x 3 = 31, plus a 1px rule between the groups.
-const NAME = 7, NUM = 3;
-const ROW_H = "26px";
+//   ชั้น | เต็ม: ชาย หญิง รวม | มา: ชาย หญิง รวม | ขาด: ชาย หญิง รวม
+// Flex units: name 5 + 9 numbers x 3 = 32, plus a 1px rule between the groups.
+// The name column is narrow, so the total rows put "รวม" on its own line.
+const NAME = 5, NUM = 3, GROUP = 3 * NUM;
+const ROW_H = "26px", TOTAL_ROW_H = "34px";
 
 type CellOpt = { color?: string; bold?: boolean; size?: string };
 // shrink-to-fit: if a phone's Thai font is wider than expected, LINE shrinks the text
@@ -63,8 +64,8 @@ const cell = (text: string, flex: number, o: CellOpt = {}) => ({
 });
 const rule = (color: string = C.grid) => ({ type: "separator", color });
 
-const tableRow = (contents: Row[], bg?: string) => ({
-  type: "box", layout: "horizontal", height: ROW_H, cornerRadius: "6px",
+const tableRow = (contents: Row[], bg?: string, height = ROW_H) => ({
+  type: "box", layout: "horizontal", height, cornerRadius: "6px",
   contents, ...(bg ? { backgroundColor: bg } : {}),
 });
 
@@ -80,18 +81,19 @@ const badge = (text: string, flex: number) => ({
 
 function tableHead() {
   const h = (t: string, flex: number, color: string, size = "xs") => cell(t, flex, { bold: true, size, color });
-  const mf = () => [h("ชาย", NUM, C.sub, "xxs"), h("หญิง", NUM, C.sub, "xxs")];
+  const sub = (totalColor: string) =>
+    [h("ชาย", NUM, C.sub, "xxs"), h("หญิง", NUM, C.sub, "xxs"), h("รวม", NUM, totalColor, "xxs")];
   return {
     type: "box", layout: "horizontal", backgroundColor: C.brandSoft, cornerRadius: "6px",
     contents: [
       h("ชั้น", NAME, C.brand),
       rule(),
-      { type: "box", layout: "vertical", flex: 8 * NUM, contents: [
+      { type: "box", layout: "vertical", flex: 3 * GROUP, contents: [
         { type: "box", layout: "horizontal", height: "22px", contents: [
-          h("เต็ม", 2 * NUM, C.sub), rule(), h("มา", 3 * NUM, C.good), rule(), h("ขาด", 3 * NUM, C.bad),
+          h("เต็ม", GROUP, C.sub), rule(), h("มา", GROUP, C.good), rule(), h("ขาด", GROUP, C.bad),
         ] },
         { type: "box", layout: "horizontal", height: "20px", contents: [
-          ...mf(), rule(), ...mf(), h("รวม", NUM, C.good, "xxs"), rule(), ...mf(), h("รวม", NUM, C.bad, "xxs"),
+          ...sub(C.sub), rule(), ...sub(C.good), rule(), ...sub(C.bad),
         ] },
       ] },
     ],
@@ -102,13 +104,20 @@ function tableHead() {
 function dataRow(label: string, a: Agg, kind: "class" | "sub" | "grand", bg?: string) {
   const grand = kind === "grand", bold = kind !== "class";
   const fg = grand ? C.white : C.text;
+  const full = grand ? C.white : C.sub;
   const absent = (n: number) => (grand ? C.white : n > 0 ? C.bad : fg);
   const r = () => rule(grand ? C.gridOnBrand : C.grid);
+  const name = kind === "class"
+    ? cell(label, NAME, { bold: true, color: fg })
+    // two lines, e.g. "รวม\nอนุบาล" (wrapped text can't use shrink-to-fit)
+    : { type: "text", text: label, flex: NAME, size: "xxs", weight: "bold", color: fg,
+      align: "center", gravity: "center", wrap: true };
   return tableRow([
-    cell(label, NAME, { bold: true, color: fg, size: kind === "class" ? "xs" : "xxs" }),
+    name,
     r(),
-    cell(String(a.tm), NUM, { bold, color: grand ? C.white : C.sub }),
-    cell(String(a.tf), NUM, { bold, color: grand ? C.white : C.sub }),
+    cell(String(a.tm), NUM, { bold, color: full }),
+    cell(String(a.tf), NUM, { bold, color: full }),
+    cell(String(a.total), NUM, { bold: true, color: full }),
     r(),
     cell(String(a.mp), NUM, { bold, color: fg }),
     cell(String(a.fp), NUM, { bold, color: fg }),
@@ -117,17 +126,19 @@ function dataRow(label: string, a: Agg, kind: "class" | "sub" | "grand", bg?: st
     cell(String(a.ma), NUM, { bold, color: absent(a.ma) }),
     cell(String(a.fa), NUM, { bold, color: absent(a.fa) }),
     cell(String(a.absent), NUM, { bold: true, color: absent(a.absent) }),
-  ], grand ? C.brand : bg);
+  ], grand ? C.brand : bg, kind === "class" ? ROW_H : TOTAL_ROW_H);
 }
 
 function pendingRow(r: Row, bg?: string) {
+  const tm = Number(r.total_male) || 0, tf = Number(r.total_female) || 0;
   return tableRow([
     cell(r.name, NAME, { color: C.muted }),
     rule(),
-    cell(String(r.total_male ?? 0), NUM, { color: C.muted }),
-    cell(String(r.total_female ?? 0), NUM, { color: C.muted }),
+    cell(String(tm), NUM, { color: C.muted }),
+    cell(String(tf), NUM, { color: C.muted }),
+    cell(String(tm + tf), NUM, { color: C.muted, bold: true }),
     rule(),
-    badge("ยังไม่ลง", 6 * NUM),
+    badge("ยังไม่ลง", 2 * GROUP),
   ], bg);
 }
 
@@ -186,8 +197,10 @@ export function summaryFlex(rows: Row[], now: Date, summaryUrl?: string) {
 
   // Only needed while some classes are pending; once all have submitted the grand-total row says it all.
   const notes = pending
-    ? [{ type: "text", text: `* ยอดรวมนับเฉพาะชั้นที่ลงแล้ว · นักเรียนทั้งโรงเรียน ${schoolTotal} คน`,
-      size: "xxs", color: C.sub, wrap: true, margin: "sm" }]
+    ? [{ type: "box", layout: "vertical", margin: "sm", paddingStart: "4px", paddingEnd: "4px", contents: [
+      { type: "text", text: `* ยอดรวมนับเฉพาะชั้นที่ลงแล้ว · นักเรียนทั้งโรงเรียน ${schoolTotal} คน`,
+        size: "xxs", color: C.sub, wrap: true },
+    ] }]
     : [];
 
   return {
@@ -206,13 +219,14 @@ export function summaryFlex(rows: Row[], now: Date, summaryUrl?: string) {
         ],
       },
       body: {
-        type: "box", layout: "vertical", paddingAll: "8px", contents: [
-          kpi,
+        type: "box", layout: "vertical", paddingTop: "8px", paddingBottom: "8px", paddingStart: "4px",
+        paddingEnd: "4px", contents: [
+          { type: "box", layout: "vertical", paddingStart: "4px", paddingEnd: "4px", contents: [kpi] },
           { type: "box", layout: "vertical", margin: "md", contents: [tableHead(), ...classRows] },
           { type: "box", layout: "vertical", margin: "sm", spacing: "xs", contents: [
-            dataRow("รวมอนุบาล", kg, "sub", C.brandSoft),
-            dataRow("รวมประถม", pri, "sub", C.brandSoft),
-            dataRow("รวมทั้งหมด", all, "grand"),
+            dataRow("รวม\nอนุบาล", kg, "sub", C.brandSoft),
+            dataRow("รวม\nประถม", pri, "sub", C.brandSoft),
+            dataRow("รวม\nทั้งหมด", all, "grand"),
           ] },
           ...notes,
         ],

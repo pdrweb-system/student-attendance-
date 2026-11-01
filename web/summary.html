@@ -14,9 +14,9 @@
     <h2 id="title" style="font-size:1.05rem"></h2>
     <div class="scroll"><table class="att">
       <thead>
-        <tr><th rowspan="2">ชั้น</th><th colspan="2" class="gs">เต็ม</th><th colspan="3" class="gs present">มา</th>
+        <tr><th rowspan="2">ชั้น</th><th colspan="3" class="gs">เต็ม</th><th colspan="3" class="gs present">มา</th>
           <th colspan="3" class="gs absent">ขาด</th><th rowspan="2" class="gs">%</th></tr>
-        <tr><th class="gs">ชาย</th><th>หญิง</th><th class="gs">ชาย</th><th>หญิง</th><th>รวม</th>
+        <tr><th class="gs">ชาย</th><th>หญิง</th><th>รวม</th><th class="gs">ชาย</th><th>หญิง</th><th>รวม</th>
           <th class="gs">ชาย</th><th>หญิง</th><th>รวม</th></tr>
       </thead>
       <tbody id="body"></tbody><tfoot id="foot"></tfoot>
@@ -33,11 +33,11 @@ function agg(rows) {
   const sum = (k) => rows.reduce((s, r) => s + (Number(r[k]) || 0), 0);
   const tm = sum("total_male"), tf = sum("total_female"), mp = sum("male_present"), fp = sum("female_present");
   const total = tm + tf, present = mp + fp;
-  return { tm, tf, mp, fp, ma: tm - mp, fa: tf - fp, present, absent: total - present,
+  return { tm, tf, total, mp, fp, ma: tm - mp, fa: tf - fp, present, absent: total - present,
     pct: total ? (100 * present / total).toFixed(1) : "-" };
 }
 const cells = (a) =>
-  `<td class="gs">${a.tm}</td><td>${a.tf}</td>` +
+  `<td class="gs">${a.tm}</td><td>${a.tf}</td><td class="tot-t">${a.total}</td>` +
   `<td class="gs">${a.mp}</td><td>${a.fp}</td><td class="tot-p">${a.present}</td>` +
   `<td class="gs">${a.ma}</td><td>${a.fa}</td><td class="tot-a">${a.absent}</td>` +
   `<td class="gs">${a.pct}</td>`;
@@ -54,6 +54,7 @@ async function load() {
   $("#body").innerHTML = data.map((r) => r.submitted
     ? `<tr><td>${esc(r.name)}</td>${cells(agg([r]))}</tr>`
     : `<tr><td>${esc(r.name)}</td><td class="gs">${r.total_male}</td><td>${r.total_female}</td>` +
+      `<td class="tot-t">${(Number(r.total_male) || 0) + (Number(r.total_female) || 0)}</td>` +
       `<td colspan="7" class="gs pending">ยังไม่ลง</td></tr>`).join("");
   const isKg = (r) => r.name.startsWith("อ."), isPri = (r) => r.name.startsWith("ป.");
   $("#foot").innerHTML =
