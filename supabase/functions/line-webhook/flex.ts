@@ -24,6 +24,7 @@ const C = {
   bad: "#C0392B",
   badSoft: "#FDECEA",
   warnSoft: "#FFF4D6",
+  noteText: "#5F4B00",  // text on warnSoft (ลาป่วย notice box)
   waitSoft: "#EEF1F4",  // class not submitted yet, before the cutoff
   white: "#FFFFFF",
   headerSub: "#CFE8CF",
@@ -193,12 +194,12 @@ function progressBar(pct: number, color: string = C.brand) {
 }
 
 // Green title bar shared by the summary and check cards.
-function cardHeader(title: string, line: string, line2?: string) {
+function cardHeader(title: string, line?: string, line2?: string) {
   return {
     type: "box", layout: "vertical", backgroundColor: C.brand, paddingAll: "14px", contents: [
       { type: "text", text: title, color: C.white, weight: "bold", size: "xl" },
       { type: "text", text: SCHOOL, color: C.headerSub, size: "xs", wrap: true },
-      { type: "text", text: line, color: C.white, size: "xs", margin: "sm", wrap: true },
+      ...(line ? [{ type: "text", text: line, color: C.white, size: "xs", margin: "sm", wrap: true }] : []),
       ...(line2 ? [{ type: "text", text: line2, color: C.white, size: "xs", wrap: true }] : []),
     ],
   };
@@ -425,28 +426,49 @@ const shortThai = (d: string) => new Date(`${d}T00:00:00+07:00`).toLocaleDateStr
 
 export function leaveFlex(p: LeavePeriod = {}) {
   const label = p.leave_year_label || "ปีงบประมาณ 2569";
-  const period = p.leave_start && p.leave_end
-    ? `${shortThai(p.leave_start)} – ${shortThai(p.leave_end)}` : "1 เม.ย. 2569 – 30 ก.ย. 2569";
+  const start = p.leave_start ? shortThai(p.leave_start) : "1 เม.ย. 2569";
+  const end = p.leave_end ? shortThai(p.leave_end) : "30 ก.ย. 2569";
+  const note = p.leave_note?.trim();
+
+  // white date tile inside the green panel: small caption + date
+  const tile = (caption: string, date: string) => ({
+    type: "box", layout: "vertical", flex: 1, backgroundColor: C.white, cornerRadius: "10px",
+    paddingTop: "8px", paddingBottom: "8px", paddingStart: "4px", paddingEnd: "4px", contents: [
+      { type: "text", text: caption, size: "xxs", color: C.sub, align: "center" },
+      { type: "text", text: date, size: "sm", weight: "bold", color: C.text, align: "center", adjustMode: "shrink-to-fit" },
+    ],
+  });
+  const period = {
+    type: "box", layout: "vertical", backgroundColor: C.brandSoft, cornerRadius: "12px", paddingAll: "12px",
+    spacing: "md", contents: [
+      { type: "text", text: label, size: "lg", weight: "bold", color: C.brand, align: "center", wrap: true },
+      { type: "box", layout: "horizontal", spacing: "sm", alignItems: "center", contents: [
+        tile("เริ่ม", start),
+        { type: "text", text: "ถึง", size: "xs", color: C.sub, flex: 0 },
+        tile("สิ้นสุด", end),
+      ] },
+    ],
+  };
+  // optional 3rd line set by the admin (may contain line breaks), shown as a notice
+  const notice = note
+    ? [{ type: "box", layout: "vertical", margin: "md", backgroundColor: C.warnSoft, cornerRadius: "10px",
+      paddingAll: "10px", contents: [
+        { type: "text", text: note, size: "sm", color: C.noteText, wrap: true, align: "center" },
+      ] }]
+    : [];
+
   return {
-    type: "flex", altText: "ระบบการลาออนไลน์",
+    type: "flex",
+    altText: `ระบบการลาออนไลน์ · ${label} (${start} – ${end})`,
     contents: {
-      type: "bubble",
-      header: { type: "box", layout: "vertical", backgroundColor: C.brand, contents: [
-        { type: "text", text: "ระบบการลาออนไลน์", color: C.white, weight: "bold", size: "lg" },
-        { type: "text", text: SCHOOL, color: "#d8f0d8", size: "xs", wrap: true },
-      ] },
-      body: { type: "box", layout: "vertical", spacing: "sm", contents: [
-        { type: "text", text: label, weight: "bold", wrap: true, align: "center" },
-        { type: "text", text: period, size: "sm", color: "#555555", wrap: true, align: "center" },
-        // optional 3rd line set by the admin (may contain line breaks)
-        ...(p.leave_note?.trim()
-          ? [{ type: "text", text: p.leave_note.trim(), size: "sm", color: "#333333", wrap: true, align: "center", margin: "md" }]
-          : []),
-      ] },
-      footer: { type: "box", layout: "vertical", contents: [
-        { type: "button", style: "primary", color: C.brand,
-          action: { type: "uri", label: "ไปที่ระบบการลา", uri: leaveUri(p.leave_url) } },
-      ] },
+      type: "bubble", size: "mega",
+      header: cardHeader("ระบบการลาออนไลน์"),
+      body: { type: "box", layout: "vertical", paddingAll: "12px", contents: [period, ...notice] },
+      footer: { type: "box", layout: "vertical", paddingTop: "0px", paddingBottom: "12px", paddingStart: "12px",
+        paddingEnd: "12px", contents: [
+          { type: "button", style: "primary", color: C.brand,
+            action: { type: "uri", label: "ไปที่ระบบการลา", uri: leaveUri(p.leave_url) } },
+        ] },
     },
   };
 }
