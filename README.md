@@ -37,6 +37,11 @@ GitHub Pages (`/web`) + Supabase (Postgres/RLS, Edge Functions, Auth) + LINE Rep
    - Supabase → Edge Functions → Secrets → `LIFF_ID` (ปุ่ม "ลงสถิติ" ในการ์ดเช็คสถิติจะเปิดผ่าน LIFF)
 5. ลิงก์หน้าลงสถิติที่ให้ครูใช้ใน LINE: `https://liff.line.me/<LIFF_ID>`
 
+## ส่งออก Excel
+หน้า "สรุปวันนี้" (`summary.html`) มีปุ่ม **Excel รายวัน** (วันที่เลือก) และ **Excel ทั้งเดือน**
+(ทุกวันในเดือนนั้นที่มีชั้นลงสถิติแล้ว 1 แผ่นงานต่อวัน) ไฟล์สร้างในเบราว์เซอร์ด้วย ExcelJS
+(`web/export.js` โหลดเฉพาะตอนกดปุ่ม) ในแอป LINE อาจดาวน์โหลดไม่ได้ หน้าจะแสดงลิงก์ให้เปิดในเบราว์เซอร์
+
 ## หมายเหตุ
 - เวลา "วันนี้"/เวลาตัดรอบ คำนวณใน DB (Asia/Bangkok) ทั้งหมด
 - ครูเขียนได้ผ่าน `submit-attendance` เท่านั้น; แอดมินเขียนตรงผ่าน RLS (`admin_users`)

@@ -13,6 +13,12 @@
 <main>
   <div class="card">
     <div class="inline"><label for="date" style="margin:0">วันที่</label><input id="date" type="date"></div>
+    <div class="export">
+      <button id="xlsDay" type="button" class="secondary" title="ดาวน์โหลดสรุปของวันที่เลือกเป็นไฟล์ Excel">📥 Excel รายวัน</button>
+      <button id="xlsMonth" type="button" class="secondary" title="ดาวน์โหลดทุกวันในเดือนของวันที่เลือก (1 แผ่นงานต่อวัน)">📥 Excel ทั้งเดือน</button>
+    </div>
+    <p id="lineHint" class="muted" hidden>ในแอป LINE อาจดาวน์โหลดไฟล์ไม่ได้ ·
+      <a id="openExt" href="#">เปิดหน้านี้ในเบราว์เซอร์</a></p>
     <h2 id="title" style="font-size:1.05rem"></h2>
     <div class="scroll"><table class="att">
       <thead>
@@ -28,7 +34,9 @@
 </main>
 <script type="module">
 import { sb, $, esc, nav, toast, fmtDate } from "./common.js";
+import { buildWorkbook, download, fileNameDay, fileNameMonth, loadExcelJS } from "./export.js";
 $("#nav").innerHTML = nav("summary");
+let shown = null; // { date, rows } currently on screen, for the Excel export
 
 // เต็ม / มา / ขาด แยกชาย-หญิง (คิดจากชั้นที่ลงแล้วเท่านั้น)
 function agg(rows) {
@@ -52,6 +60,7 @@ async function load() {
     const { data: t } = await sb.rpc("th_today"); $("#date").value = t;
   }
   $("#title").textContent = fmtDate($("#date").value);
+  shown = { date: $("#date").value, rows: data };
   const done = data.filter((r) => r.submitted);
   $("#body").innerHTML = data.map((r) => r.submitted
     ? `<tr><td>${esc(r.name)}</td>${cells(agg([r]))}</tr>`
@@ -67,6 +76,49 @@ async function load() {
 }
 $("#date").addEventListener("change", load);
 load();
+
+// ---- Excel export (ExcelJS loads on first use)
+async function exportXlsx(btn, make) {
+  const label = btn.textContent;
+  btn.disabled = true;
+  btn.textContent = "กำลังสร้างไฟล์…";
+  try {
+    const ExcelJS = await loadExcelJS();
+    const { days, name } = await make();
+    if (!days.length) return toast("ยังไม่มีข้อมูลที่ลงไว้ในเดือนนี้", false);
+    await download(buildWorkbook(ExcelJS, days), name);
+  } catch (e) {
+    console.error(e);
+    toast(e.message || "สร้างไฟล์ไม่สำเร็จ", false);
+  } finally {
+    btn.disabled = false;
+    btn.textContent = label;
+  }
+}
+
+// Every day of the selected month that has at least one class submitted (one sheet per day).
+async function monthDays(anyDate) {
+  const [y, m] = anyDate.split("-").map(Number);
+  const n = new Date(Date.UTC(y, m, 0)).getUTCDate();
+  const dates = Array.from({ length: n }, (_, i) => `${anyDate.slice(0, 7)}-${String(i + 1).padStart(2, "0")}`);
+  const res = await Promise.all(dates.map((d) => sb.rpc("daily_summary", { p_date: d })));
+  if (res.some((x) => x.error)) throw new Error("โหลดข้อมูลไม่สำเร็จ");
+  return dates.map((date, i) => ({ date, rows: res[i].data })).filter((d) => d.rows.some((r) => r.submitted));
+}
+
+const dayBtn = $("#xlsDay"), monthBtn = $("#xlsMonth");
+dayBtn.addEventListener("click", () => exportXlsx(dayBtn, async () =>
+  ({ days: shown ? [shown] : [], name: fileNameDay(shown.date) })));
+monthBtn.addEventListener("click", () => exportXlsx(monthBtn, async () =>
+  ({ days: await monthDays($("#date").value), name: fileNameMonth($("#date").value) })));
+
+// LINE's in-app browser often can't save downloads; offer to reopen in the phone's browser.
+if (/\bLine\//i.test(navigator.userAgent)) {
+  const u = new URL(location.href);
+  u.searchParams.set("openExternalBrowser", "1");
+  $("#openExt").href = u.toString();
+  $("#lineHint").hidden = false;
+}
 </script>
 </body>
 </html>

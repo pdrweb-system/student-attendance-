@@ -125,3 +125,7 @@ button.cls.on { border-color:var(--green); background:var(--ok); box-shadow:0 0 
 .sum b.neg, .sum .neg { color:var(--bad); }
 .save { padding:12px 28px; font-size:1.05rem; border-radius:12px; }
 .tform.nosel .counters, .tform.nosel .fill-all, .tform.locked .counters, .tform.locked .fill-all { opacity:.45; }
+
+/* summary page: Excel export buttons */
+.export { display:flex; gap:8px; flex-wrap:wrap; margin-top:10px; }
+.export button { flex:1 1 160px; }
