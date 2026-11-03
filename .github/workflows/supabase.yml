@@ -22,5 +22,5 @@ jobs:
       # as applied in the migration history (no-op once recorded).
       - run: supabase migration repair --status applied 20261101000000 --remote --password "$SUPABASE_DB_PASSWORD" --yes
       - run: supabase db push --remote --password "$SUPABASE_DB_PASSWORD" --yes
-      - run: supabase functions deploy submit-attendance --no-verify-jwt
-      - run: supabase functions deploy line-webhook --no-verify-jwt
+      - run: supabase functions deploy submit-attendance --no-verify-jwt --yes
+      - run: supabase functions deploy line-webhook --no-verify-jwt --yes
