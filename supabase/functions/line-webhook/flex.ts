@@ -408,7 +408,7 @@ export function checkFlex(st: Status, rows: Row[], now: Date, siteUrl?: string, 
 }
 
 // Fiscal-year period from system_settings (admin page); defaults match the original card.
-export type LeavePeriod = { leave_year_label?: string; leave_start?: string; leave_end?: string };
+export type LeavePeriod = { leave_year_label?: string; leave_start?: string; leave_end?: string; leave_note?: string | null };
 const shortThai = (d: string) => new Date(`${d}T00:00:00+07:00`).toLocaleDateString("th-TH-u-ca-buddhist",
   { timeZone: "Asia/Bangkok", day: "numeric", month: "short", year: "numeric" });
 
@@ -427,6 +427,10 @@ export function leaveFlex(p: LeavePeriod = {}) {
       body: { type: "box", layout: "vertical", spacing: "sm", contents: [
         { type: "text", text: label, weight: "bold", wrap: true, align: "center" },
         { type: "text", text: period, size: "sm", color: "#555555", wrap: true, align: "center" },
+        // optional 3rd line set by the admin (may contain line breaks)
+        ...(p.leave_note?.trim()
+          ? [{ type: "text", text: p.leave_note.trim(), size: "sm", color: "#333333", wrap: true, align: "center", margin: "md" }]
+          : []),
       ] },
       footer: { type: "box", layout: "vertical", contents: [
         { type: "button", style: "primary", color: C.brand,
