@@ -407,7 +407,15 @@ export function checkFlex(st: Status, rows: Row[], now: Date, siteUrl?: string, 
   };
 }
 
-export function leaveFlex() {
+// Fiscal-year period from system_settings (admin page); defaults match the original card.
+export type LeavePeriod = { leave_year_label?: string; leave_start?: string; leave_end?: string };
+const shortThai = (d: string) => new Date(`${d}T00:00:00+07:00`).toLocaleDateString("th-TH-u-ca-buddhist",
+  { timeZone: "Asia/Bangkok", day: "numeric", month: "short", year: "numeric" });
+
+export function leaveFlex(p: LeavePeriod = {}) {
+  const label = p.leave_year_label || "ปีงบประมาณ 2569";
+  const period = p.leave_start && p.leave_end
+    ? `${shortThai(p.leave_start)} – ${shortThai(p.leave_end)}` : "1 เม.ย. 2569 – 30 ก.ย. 2569";
   return {
     type: "flex", altText: "ระบบการลาออนไลน์",
     contents: {
@@ -417,8 +425,8 @@ export function leaveFlex() {
         { type: "text", text: SCHOOL, color: "#d8f0d8", size: "xs", wrap: true },
       ] },
       body: { type: "box", layout: "vertical", spacing: "sm", contents: [
-        { type: "text", text: "ปีงบประมาณ 2569", weight: "bold" },
-        { type: "text", text: "1 เม.ย. 2569 – 30 ก.ย. 2569", size: "sm", color: "#555555" },
+        { type: "text", text: label, weight: "bold", wrap: true },
+        { type: "text", text: period, size: "sm", color: "#555555", wrap: true },
       ] },
       footer: { type: "box", layout: "vertical", contents: [
         { type: "button", style: "primary", color: C.brand,

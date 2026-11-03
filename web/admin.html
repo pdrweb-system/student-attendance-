@@ -27,6 +27,12 @@
       <label><input type="checkbox" id="accepting" style="width:auto"> เปิดรับการลงสถิติ</label>
       <label for="closedMsg">ข้อความเมื่อปิดระบบ</label><input id="closedMsg">
       <label for="cutoff">เวลาตัดรอบของครู (เวลาไทย)</label><input id="cutoff" type="time">
+      <h2>ปีงบประมาณ (การ์ด "ลาป่วย" ใน LINE)</h2>
+      <label for="leaveLabel">ข้อความหัวข้อ</label><input id="leaveLabel" placeholder="ปีงบประมาณ 2570">
+      <div class="row">
+        <div><label for="leaveStart">วันเริ่ม</label><input id="leaveStart" type="date"></div>
+        <div><label for="leaveEnd">วันสิ้นสุด</label><input id="leaveEnd" type="date"></div>
+      </div>
       <p><button id="saveSettings">บันทึก</button></p>
 
       <h2>เปิดช่วงลงเพิ่ม (เฉพาะวันนี้)</h2>
@@ -103,14 +109,21 @@ async function loadSettings() {
   $("#accepting").checked = s.accepting_submissions;
   $("#closedMsg").value = s.closed_message ?? "";
   $("#cutoff").value = s.teacher_cutoff_time.slice(0, 5);
+  $("#leaveLabel").value = s.leave_year_label ?? "";
+  $("#leaveStart").value = s.leave_start ?? "";
+  $("#leaveEnd").value = s.leave_end ?? "";
   const { data: ex } = await sb.from("submission_extensions").select("*").eq("att_date", today).gt("open_until", new Date().toISOString()).order("open_until");
   const name = (id) => (id ? classes.find((c) => c.id === id)?.name : "ทุกชั้น");
   $("#extList").innerHTML = (ex ?? []).map((x) => `<tr><td>${esc(name(x.class_id))}</td><td>${new Date(x.open_until).toLocaleTimeString("th-TH", { timeZone: "Asia/Bangkok", hour: "2-digit", minute: "2-digit" })}</td><td><button class="danger" data-close="${x.id}">ปิด</button></td></tr>`).join("") || `<tr><td colspan="3" class="muted">ไม่มีช่วงที่เปิดอยู่</td></tr>`;
 }
 $("#saveSettings").addEventListener("click", async () => {
+  if (!$("#leaveLabel").value.trim() || !$("#leaveStart").value || !$("#leaveEnd").value)
+    return toast("กรอกปีงบประมาณ วันเริ่ม และวันสิ้นสุดให้ครบ", false);
+  if ($("#leaveEnd").value < $("#leaveStart").value) return toast("วันสิ้นสุดต้องไม่ก่อนวันเริ่ม", false);
   const { error } = await sb.from("system_settings").update({
     accepting_submissions: $("#accepting").checked, closed_message: $("#closedMsg").value,
-    teacher_cutoff_time: $("#cutoff").value, updated_at: new Date().toISOString(),
+    teacher_cutoff_time: $("#cutoff").value, leave_year_label: $("#leaveLabel").value.trim(),
+    leave_start: $("#leaveStart").value, leave_end: $("#leaveEnd").value, updated_at: new Date().toISOString(),
   }).eq("id", true);
   toast(error ? error.message : "บันทึกแล้ว", !error);
 });
