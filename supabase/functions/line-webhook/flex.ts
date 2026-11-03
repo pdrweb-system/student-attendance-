@@ -425,8 +425,8 @@ export function leaveFlex(p: LeavePeriod = {}) {
         { type: "text", text: SCHOOL, color: "#d8f0d8", size: "xs", wrap: true },
       ] },
       body: { type: "box", layout: "vertical", spacing: "sm", contents: [
-        { type: "text", text: label, weight: "bold", wrap: true },
-        { type: "text", text: period, size: "sm", color: "#555555", wrap: true },
+        { type: "text", text: label, weight: "bold", wrap: true, align: "center" },
+        { type: "text", text: period, size: "sm", color: "#555555", wrap: true, align: "center" },
       ] },
       footer: { type: "box", layout: "vertical", contents: [
         { type: "button", style: "primary", color: C.brand,
