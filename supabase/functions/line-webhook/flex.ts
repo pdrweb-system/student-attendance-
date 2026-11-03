@@ -408,7 +408,18 @@ export function checkFlex(st: Status, rows: Row[], now: Date, siteUrl?: string, 
 }
 
 // Fiscal-year period from system_settings (admin page); defaults match the original card.
-export type LeavePeriod = { leave_year_label?: string; leave_start?: string; leave_end?: string; leave_note?: string | null };
+export type LeavePeriod = {
+  leave_year_label?: string; leave_start?: string; leave_end?: string; leave_note?: string | null; leave_url?: string | null;
+};
+// LINE rejects the whole reply if a button URI is invalid, so only accept http(s) links and fall back otherwise.
+const leaveUri = (u?: string | null) => {
+  try {
+    const x = new URL(String(u ?? "").trim());
+    return /^https?:$/.test(x.protocol) && x.href.length <= 1000 ? x.href : LEAVE_URL;
+  } catch {
+    return LEAVE_URL;
+  }
+};
 const shortThai = (d: string) => new Date(`${d}T00:00:00+07:00`).toLocaleDateString("th-TH-u-ca-buddhist",
   { timeZone: "Asia/Bangkok", day: "numeric", month: "short", year: "numeric" });
 
@@ -434,7 +445,7 @@ export function leaveFlex(p: LeavePeriod = {}) {
       ] },
       footer: { type: "box", layout: "vertical", contents: [
         { type: "button", style: "primary", color: C.brand,
-          action: { type: "uri", label: "ไปที่ระบบการลา", uri: LEAVE_URL } },
+          action: { type: "uri", label: "ไปที่ระบบการลา", uri: leaveUri(p.leave_url) } },
       ] },
     },
   };

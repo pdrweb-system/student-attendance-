@@ -50,6 +50,9 @@
       <label for="leaveNote">ข้อความเพิ่มเติม (บรรทัดที่ 3 ต่อจากวันที่ ไม่บังคับ)</label>
       <textarea id="leaveNote" rows="2" maxlength="300" placeholder="เช่น ยื่นใบลาล่วงหน้าอย่างน้อย 1 วัน"></textarea>
       <p class="muted">เว้นว่างไว้ ถ้าไม่ต้องการบรรทัดที่ 3</p>
+      <label for="leaveUrl">ลิงก์ปุ่ม "ไปที่ระบบการลา"</label>
+      <input id="leaveUrl" type="url" inputmode="url" maxlength="1000" placeholder="https://pdrweb-system.github.io/leavesystem/">
+      <p class="muted">ต้องขึ้นต้นด้วย https:// หรือ http:// · เว้นว่างเพื่อใช้ลิงก์เดิม (https://pdrweb-system.github.io/leavesystem/)</p>
       <p><button id="saveLeave">บันทึก</button></p>
     </section>
 
@@ -151,20 +154,27 @@ $("#extList").addEventListener("click", async (e) => {
 
 // ---- leave (fiscal year in the LINE "ลาป่วย" card)
 async function loadLeave() {
-  const { data: s, error } = await sb.from("system_settings").select("leave_year_label, leave_start, leave_end, leave_note").single();
+  const { data: s, error } = await sb.from("system_settings").select("leave_year_label, leave_start, leave_end, leave_note, leave_url").single();
   if (error) return toast(error.message, false);
   $("#leaveLabel").value = s.leave_year_label ?? "";
   $("#leaveStart").value = s.leave_start ?? "";
   $("#leaveEnd").value = s.leave_end ?? "";
   $("#leaveNote").value = s.leave_note ?? "";
+  $("#leaveUrl").value = s.leave_url ?? "";
 }
 $("#saveLeave").addEventListener("click", async () => {
   const label = $("#leaveLabel").value.trim(), start = $("#leaveStart").value, end = $("#leaveEnd").value;
   if (!label || !start || !end) return toast("กรอกปีงบประมาณ วันเริ่ม และวันสิ้นสุดให้ครบ", false);
   if (end < start) return toast("วันสิ้นสุดต้องไม่ก่อนวันเริ่ม", false);
+  const url = $("#leaveUrl").value.trim();
+  if (url) {
+    let ok = false;
+    try { ok = /^https?:$/.test(new URL(url).protocol); } catch { /* not a URL */ }
+    if (!ok) return toast("ลิงก์ต้องขึ้นต้นด้วย https:// หรือ http://", false);
+  }
   const { error } = await sb.from("system_settings").update({
     leave_year_label: label, leave_start: start, leave_end: end,
-    leave_note: $("#leaveNote").value.trim() || null, updated_at: new Date().toISOString(),
+    leave_note: $("#leaveNote").value.trim() || null, leave_url: url || null, updated_at: new Date().toISOString(),
   }).eq("id", true);
   toast(error ? error.message : "บันทึกแล้ว", !error);
 });

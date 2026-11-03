@@ -49,7 +49,7 @@ Deno.serve(async (req) => {
     try {
       if (text.includes("ลาป่วย")) {
         const { data: period } = await supabase.from("system_settings")
-          .select("leave_year_label, leave_start, leave_end, leave_note").maybeSingle();
+          .select("leave_year_label, leave_start, leave_end, leave_note, leave_url").maybeSingle();
         await reply(ev.replyToken, [leaveFlex(period ?? {})], accessToken);
       } else if (text.includes("สรุปสถิติ")) {
         const { data, error } = await supabase.rpc("daily_summary");
