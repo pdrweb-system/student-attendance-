@@ -27,12 +27,6 @@
       <label><input type="checkbox" id="accepting" style="width:auto"> เปิดรับการลงสถิติ</label>
       <label for="closedMsg">ข้อความเมื่อปิดระบบ</label><input id="closedMsg">
       <label for="cutoff">เวลาตัดรอบของครู (เวลาไทย)</label><input id="cutoff" type="time">
-      <h2>ปีงบประมาณ (การ์ด "ลาป่วย" ใน LINE)</h2>
-      <label for="leaveLabel">ข้อความหัวข้อ</label><input id="leaveLabel" placeholder="ปีงบประมาณ 2570">
-      <div class="row">
-        <div><label for="leaveStart">วันเริ่ม</label><input id="leaveStart" type="date"></div>
-        <div><label for="leaveEnd">วันสิ้นสุด</label><input id="leaveEnd" type="date"></div>
-      </div>
       <p><button id="saveSettings">บันทึก</button></p>
 
       <h2>เปิดช่วงลงเพิ่ม (เฉพาะวันนี้)</h2>
@@ -43,6 +37,17 @@
         <button id="addExt">เปิด</button>
       </div>
       <div class="scroll"><table><thead><tr><th>ชั้น</th><th>ถึง</th><th></th></tr></thead><tbody id="extList"></tbody></table></div>
+    </section>
+
+    <section id="t-leave" class="card" hidden>
+      <h2>ตั้งค่าวันลา</h2>
+      <p class="muted">ปีงบประมาณและช่วงวันที่ที่แสดงในการ์ด "ลาป่วย" ของกลุ่ม LINE</p>
+      <label for="leaveLabel">ข้อความหัวข้อ</label><input id="leaveLabel" placeholder="ปีงบประมาณ 2570">
+      <div class="row">
+        <div><label for="leaveStart">วันเริ่ม</label><input id="leaveStart" type="date"></div>
+        <div><label for="leaveEnd">วันสิ้นสุด</label><input id="leaveEnd" type="date"></div>
+      </div>
+      <p><button id="saveLeave">บันทึก</button></p>
     </section>
 
     <section id="t-enroll" class="card" hidden>
@@ -70,7 +75,7 @@ import { sb, $, esc, nav, toast, getStatus } from "./common.js";
 import { ADMIN_EMAIL } from "./config.js";
 $("#nav").innerHTML = nav("admin");
 
-const TABS = { settings: "ตั้งค่า", enroll: "จำนวนนักเรียน", att: "สถิติย้อนหลัง", audit: "Audit log" };
+const TABS = { settings: "ตั้งค่า", leave: "ตั้งค่าวันลา", enroll: "จำนวนนักเรียน", att: "สถิติย้อนหลัง", audit: "Audit log" };
 let classes = [], today = null;
 
 async function boot() {
@@ -91,7 +96,7 @@ async function boot() {
 function show(t) {
   for (const k in TABS) $("#t-" + k).hidden = k !== t;
   document.querySelectorAll("#tabs button").forEach((b) => b.classList.toggle("on", b.dataset.t === t));
-  ({ settings: loadSettings, enroll: loadEnroll, att: loadAtt, audit: loadAudit })[t]();
+  ({ settings: loadSettings, leave: loadLeave, enroll: loadEnroll, att: loadAtt, audit: loadAudit })[t]();
 }
 $("#tabs").addEventListener("click", (e) => e.target.dataset.t && show(e.target.dataset.t));
 
@@ -109,21 +114,14 @@ async function loadSettings() {
   $("#accepting").checked = s.accepting_submissions;
   $("#closedMsg").value = s.closed_message ?? "";
   $("#cutoff").value = s.teacher_cutoff_time.slice(0, 5);
-  $("#leaveLabel").value = s.leave_year_label ?? "";
-  $("#leaveStart").value = s.leave_start ?? "";
-  $("#leaveEnd").value = s.leave_end ?? "";
   const { data: ex } = await sb.from("submission_extensions").select("*").eq("att_date", today).gt("open_until", new Date().toISOString()).order("open_until");
   const name = (id) => (id ? classes.find((c) => c.id === id)?.name : "ทุกชั้น");
   $("#extList").innerHTML = (ex ?? []).map((x) => `<tr><td>${esc(name(x.class_id))}</td><td>${new Date(x.open_until).toLocaleTimeString("th-TH", { timeZone: "Asia/Bangkok", hour: "2-digit", minute: "2-digit" })}</td><td><button class="danger" data-close="${x.id}">ปิด</button></td></tr>`).join("") || `<tr><td colspan="3" class="muted">ไม่มีช่วงที่เปิดอยู่</td></tr>`;
 }
 $("#saveSettings").addEventListener("click", async () => {
-  if (!$("#leaveLabel").value.trim() || !$("#leaveStart").value || !$("#leaveEnd").value)
-    return toast("กรอกปีงบประมาณ วันเริ่ม และวันสิ้นสุดให้ครบ", false);
-  if ($("#leaveEnd").value < $("#leaveStart").value) return toast("วันสิ้นสุดต้องไม่ก่อนวันเริ่ม", false);
   const { error } = await sb.from("system_settings").update({
     accepting_submissions: $("#accepting").checked, closed_message: $("#closedMsg").value,
-    teacher_cutoff_time: $("#cutoff").value, leave_year_label: $("#leaveLabel").value.trim(),
-    leave_start: $("#leaveStart").value, leave_end: $("#leaveEnd").value, updated_at: new Date().toISOString(),
+    teacher_cutoff_time: $("#cutoff").value, updated_at: new Date().toISOString(),
   }).eq("id", true);
   toast(error ? error.message : "บันทึกแล้ว", !error);
 });
@@ -146,6 +144,24 @@ $("#extList").addEventListener("click", async (e) => {
   const id = e.target.dataset.close; if (!id) return;
   const { error } = await sb.from("submission_extensions").delete().eq("id", id);
   toast(error ? error.message : "ปิดแล้ว", !error); loadSettings();
+});
+
+// ---- leave (fiscal year in the LINE "ลาป่วย" card)
+async function loadLeave() {
+  const { data: s, error } = await sb.from("system_settings").select("leave_year_label, leave_start, leave_end").single();
+  if (error) return toast(error.message, false);
+  $("#leaveLabel").value = s.leave_year_label ?? "";
+  $("#leaveStart").value = s.leave_start ?? "";
+  $("#leaveEnd").value = s.leave_end ?? "";
+}
+$("#saveLeave").addEventListener("click", async () => {
+  const label = $("#leaveLabel").value.trim(), start = $("#leaveStart").value, end = $("#leaveEnd").value;
+  if (!label || !start || !end) return toast("กรอกปีงบประมาณ วันเริ่ม และวันสิ้นสุดให้ครบ", false);
+  if (end < start) return toast("วันสิ้นสุดต้องไม่ก่อนวันเริ่ม", false);
+  const { error } = await sb.from("system_settings").update({
+    leave_year_label: label, leave_start: start, leave_end: end, updated_at: new Date().toISOString(),
+  }).eq("id", true);
+  toast(error ? error.message : "บันทึกแล้ว", !error);
 });
 
 // ---- enrollment
