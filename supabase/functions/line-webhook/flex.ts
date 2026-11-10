@@ -198,18 +198,6 @@ function cardHeader(title: string, line?: string, line2?: string) {
   };
 }
 
-// Short title bar for the summary card (kept low so the whole card fits on a phone screen).
-function compactHeader(title: string, line: string) {
-  return {
-    type: "box", layout: "vertical", backgroundColor: C.brand, paddingTop: "12px", paddingBottom: "12px",
-    paddingStart: "14px", paddingEnd: "14px", contents: [
-      { type: "text", text: title, color: C.white, weight: "bold", size: "lg" },
-      { type: "text", text: line, color: C.headerSub, size: "xs", wrap: true },
-    ],
-  };
-}
-const thaiDateShort = (d: Date) => new Intl.DateTimeFormat("th-TH-u-ca-buddhist",
-  { timeZone: "Asia/Bangkok", weekday: "short", day: "numeric", month: "short", year: "numeric" }).format(d);
 const span = (text: string, color: string, bold = false) =>
   ({ type: "span", text, color, ...(bold ? { weight: "bold" } : {}) });
 
@@ -255,13 +243,16 @@ export function summaryFlex(rows: Row[], now: Date, summaryUrl?: string) {
     ],
   };
 
-  // bottom line: note while classes are pending (left) and a small link to the web summary (right)
+  // note while some classes are pending, then one row: data time (left) + link to the web summary (right)
+  const note = pending
+    ? [{ type: "box", layout: "vertical", margin: "sm", paddingStart: "4px", paddingEnd: "4px", contents: [
+      { type: "text", text: `* รวมเฉพาะชั้นที่ลงแล้ว (ทั้งโรงเรียน ${schoolTotal} คน)`, size: "xxs", color: C.sub, wrap: true },
+    ] }]
+    : [];
   const bottom = {
     type: "box", layout: "horizontal", margin: "sm", paddingStart: "4px", paddingEnd: "4px", alignItems: "center",
     contents: [
-      pending
-        ? { type: "text", text: `* รวมเฉพาะชั้นที่ลงแล้ว (ทั้งโรงเรียน ${schoolTotal} คน)`, size: "xxs", color: C.sub, flex: 1, wrap: true }
-        : { type: "filler" },
+      { type: "text", text: `ข้อมูล ณ ${thaiTime(now)} น.`, size: "xxs", color: C.sub, flex: 1 },
       ...(summaryUrl
         ? [{ type: "text", text: "ดูสรุปบนเว็บ ›", size: "xs", weight: "bold", color: C.brand, flex: 0,
           action: { type: "uri", label: "ดูสรุปบนเว็บ", uri: summaryUrl } }]
@@ -277,14 +268,15 @@ export function summaryFlex(rows: Row[], now: Date, summaryUrl?: string) {
     contents: {
       // mega = LINE's standard width that fits phone screens (giga overflows).
       type: "bubble", size: "mega",
-      header: compactHeader("สรุปสถิติมาเรียน", `📅 ${thaiDateShort(now)} · ข้อมูล ณ ${thaiTime(now)} น.`),
+      header: cardHeader("สรุปสถิติมาเรียน", `📅 ${thaiDate(now)}`),
       body: {
         type: "box", layout: "vertical", paddingTop: "8px", paddingBottom: "8px", paddingStart: "4px",
         paddingEnd: "4px", contents: [
           { type: "box", layout: "vertical", paddingStart: "4px", paddingEnd: "4px", contents: [kpi] },
           table,
           totals,
-          ...(pending || summaryUrl ? [bottom] : []),
+          ...note,
+          bottom,
         ],
       },
     },
