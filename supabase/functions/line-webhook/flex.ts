@@ -69,7 +69,7 @@ function agg(group: Row[]): Agg {
 // Class rows have a fixed height so the rules run unbroken; total rows grow to fit their
 // two-line label (Thai text is drawn with taller lines on phones).
 const NAME_W = "42px", NUM = 3, GROUP = 3 * NUM;
-const ROW_H = "26px";
+const ROW_H = "22px"; // compact so the whole summary card fits on a phone screen
 
 type CellOpt = { color?: string; bold?: boolean; size?: string; fit?: boolean };
 // shrink-to-fit: if a phone's Thai font is wider than expected, LINE shrinks the text
@@ -106,7 +106,7 @@ function gridRow(name: Row, groups: Row[][], o: GridOpt = {}) {
   const height = o.height === undefined ? ROW_H : o.height;
   return {
     type: "box", layout: "horizontal", contents,
-    ...(height ? { height } : { paddingTop: "5px", paddingBottom: "5px" }),
+    ...(height ? { height } : { paddingTop: "3px", paddingBottom: "3px" }),
     ...(o.boxed ? { cornerRadius: "6px", borderWidth: "1px", borderColor: C.ruleGroup } : {}),
     ...(o.bg ? { backgroundColor: o.bg } : {}),
   };
@@ -136,12 +136,12 @@ function tableHead() {
       nameCell("ชั้น", { color: C.headText }),
       rule(C.ruleGroup),
       { type: "box", layout: "vertical", flex: 1, contents: [
-        { type: "box", layout: "horizontal", height: "26px", contents: [
+        { type: "box", layout: "horizontal", height: "22px", contents: [
           ...group("เต็ม", C.headText), rule(C.ruleGroup), ...group("มา", C.good), rule(C.ruleGroup),
           ...group("ขาด", C.bad),
         ] },
         rule(C.ruleCell),
-        { type: "box", layout: "horizontal", height: "22px", contents: [
+        { type: "box", layout: "horizontal", height: "20px", contents: [
           ...subs(C.headSub), rule(C.ruleGroup), ...subs(C.good), rule(C.ruleGroup), ...subs(C.bad),
         ] },
       ] },
@@ -174,20 +174,13 @@ function pendingRow(r: Row) {
 const totalRow = (label: string, a: Agg, bg: string, cellRule: string) =>
   gridRow(nameCell(label, { size: "xxs" }), numberGroups(a, true, true), { bg, cellRule, height: null, boxed: true });
 
-const kv = (k: string, v: string, color: string = C.text) => ({
-  type: "box", layout: "baseline", contents: [
-    { type: "text", text: k, size: "xs", color: C.sub, flex: 0 },
-    { type: "text", text: v, size: "sm", weight: "bold", align: "end", color, flex: 1 },
-  ],
-});
-
-function progressBar(pct: number, color: string = C.brand) {
+function progressBar(pct: number, color: string = C.brand, h = "8px", margin = "md") {
   const w = Math.min(100, Math.max(1, Math.round(pct)));
   return {
-    type: "box", layout: "vertical", margin: "md", height: "8px", cornerRadius: "4px",
+    type: "box", layout: "vertical", margin, height: h, cornerRadius: "4px",
     backgroundColor: C.track,
     contents: [{
-      type: "box", layout: "vertical", width: `${w}%`, height: "8px", cornerRadius: "4px",
+      type: "box", layout: "vertical", width: `${w}%`, height: h, cornerRadius: "4px",
       backgroundColor: color, contents: [{ type: "filler" }],
     }],
   };
@@ -205,6 +198,21 @@ function cardHeader(title: string, line?: string, line2?: string) {
   };
 }
 
+// Short title bar for the summary card (kept low so the whole card fits on a phone screen).
+function compactHeader(title: string, line: string) {
+  return {
+    type: "box", layout: "vertical", backgroundColor: C.brand, paddingTop: "12px", paddingBottom: "12px",
+    paddingStart: "14px", paddingEnd: "14px", contents: [
+      { type: "text", text: title, color: C.white, weight: "bold", size: "lg" },
+      { type: "text", text: line, color: C.headerSub, size: "xs", wrap: true },
+    ],
+  };
+}
+const thaiDateShort = (d: Date) => new Intl.DateTimeFormat("th-TH-u-ca-buddhist",
+  { timeZone: "Asia/Bangkok", weekday: "short", day: "numeric", month: "short", year: "numeric" }).format(d);
+const span = (text: string, color: string, bold = false) =>
+  ({ type: "span", text, color, ...(bold ? { weight: "bold" } : {}) });
+
 export function summaryFlex(rows: Row[], now: Date, summaryUrl?: string) {
   const done = rows.filter((r) => r.submitted);
   const pending = rows.length - done.length;
@@ -213,24 +221,23 @@ export function summaryFlex(rows: Row[], now: Date, summaryUrl?: string) {
   const pri = agg(done.filter((r) => String(r.name).startsWith("ป.")));
   const schoolTotal = rows.reduce((s, r) => s + (Number(r.total) || 0), 0);
 
+  // one-line KPI strip: overall % | มา · ขาด · ลงแล้ว, with a thin progress bar
+  const stats = [
+    span("มา ", C.sub), span(String(all.present), C.good, true),
+    span(" · ขาด ", C.sub), span(String(all.absent), all.absent ? C.bad : C.text, true),
+    span(" · ลงแล้ว ", C.sub), span(`${done.length}/${rows.length}`, pending ? C.warn : C.good, true),
+  ];
   const kpi = {
-    type: "box", layout: "vertical", backgroundColor: C.brandSoft, cornerRadius: "12px", paddingAll: "12px",
-    contents: [
-      { type: "box", layout: "horizontal", alignItems: "center", spacing: "md", contents: [
-        { type: "box", layout: "vertical", flex: 1, contents: [
-          { type: "text", text: "มาเรียนวันนี้", size: "xs", color: C.sub },
-          { type: "text", text: all.pct == null ? "-" : `${fmtPct(all.pct)}%`, size: "xxl", weight: "bold",
-            color: all.pct == null ? C.muted : C.brand },
+    type: "box", layout: "horizontal", backgroundColor: C.brandSoft, cornerRadius: "10px", alignItems: "center",
+    spacing: "md", paddingTop: "8px", paddingBottom: "8px", paddingStart: "12px", paddingEnd: "12px", contents: [
+      { type: "text", text: all.pct == null ? "-" : `${fmtPct(all.pct)}%`, size: "xl", weight: "bold", flex: 0,
+        color: all.pct == null ? C.muted : C.brand },
+      { type: "box", layout: "vertical", flex: 1, contents: all.pct == null
+        ? [{ type: "text", text: "ยังไม่มีชั้นใดลงสถิติวันนี้", size: "xs", color: C.sub, wrap: true }]
+        : [
+          { type: "text", size: "xs", wrap: true, text: stats.map((x) => x.text).join(""), contents: stats },
+          progressBar(all.pct, C.brand, "6px", "sm"),
         ] },
-        { type: "box", layout: "vertical", flex: 1, spacing: "xs", contents: [
-          kv("มา", `${all.present} คน`, C.good),
-          kv("ขาด", `${all.absent} คน`, all.absent ? C.bad : C.text),
-          kv("ลงแล้ว", `${done.length}/${rows.length} ชั้น`, pending ? C.warn : C.good),
-        ] },
-      ] },
-      ...(all.pct == null
-        ? [{ type: "text", text: "ยังไม่มีชั้นใดลงสถิติวันนี้", size: "xs", color: C.sub, margin: "md", wrap: true }]
-        : [progressBar(all.pct)]),
     ],
   };
 
@@ -248,13 +255,19 @@ export function summaryFlex(rows: Row[], now: Date, summaryUrl?: string) {
     ],
   };
 
-  // Only needed while some classes are pending; once all have submitted the grand-total row says it all.
-  const notes = pending
-    ? [{ type: "box", layout: "vertical", margin: "sm", paddingStart: "4px", paddingEnd: "4px", contents: [
-      { type: "text", text: `* ยอดรวมนับเฉพาะชั้นที่ลงแล้ว · นักเรียนทั้งโรงเรียน ${schoolTotal} คน`,
-        size: "xxs", color: C.sub, wrap: true },
-    ] }]
-    : [];
+  // bottom line: note while classes are pending (left) and a small link to the web summary (right)
+  const bottom = {
+    type: "box", layout: "horizontal", margin: "sm", paddingStart: "4px", paddingEnd: "4px", alignItems: "center",
+    contents: [
+      pending
+        ? { type: "text", text: `* รวมเฉพาะชั้นที่ลงแล้ว (ทั้งโรงเรียน ${schoolTotal} คน)`, size: "xxs", color: C.sub, flex: 1, wrap: true }
+        : { type: "filler" },
+      ...(summaryUrl
+        ? [{ type: "text", text: "ดูสรุปบนเว็บ ›", size: "xs", weight: "bold", color: C.brand, flex: 0,
+          action: { type: "uri", label: "ดูสรุปบนเว็บ", uri: summaryUrl } }]
+        : []),
+    ],
+  };
 
   return {
     type: "flex",
@@ -264,26 +277,16 @@ export function summaryFlex(rows: Row[], now: Date, summaryUrl?: string) {
     contents: {
       // mega = LINE's standard width that fits phone screens (giga overflows).
       type: "bubble", size: "mega",
-      header: cardHeader("สรุปสถิติมาเรียน", `📅 ${thaiDate(now)}`),
+      header: compactHeader("สรุปสถิติมาเรียน", `📅 ${thaiDateShort(now)} · ข้อมูล ณ ${thaiTime(now)} น.`),
       body: {
         type: "box", layout: "vertical", paddingTop: "8px", paddingBottom: "8px", paddingStart: "4px",
         paddingEnd: "4px", contents: [
           { type: "box", layout: "vertical", paddingStart: "4px", paddingEnd: "4px", contents: [kpi] },
           table,
           totals,
-          ...notes,
+          ...(pending || summaryUrl ? [bottom] : []),
         ],
       },
-      footer: {
-        type: "box", layout: "vertical", spacing: "xs", paddingAll: "10px", contents: [
-          ...(summaryUrl
-            ? [{ type: "button", style: "primary", color: C.brand, height: "sm",
-              action: { type: "uri", label: "ดูสรุปบนเว็บ", uri: summaryUrl } }]
-            : []),
-          { type: "text", text: `ข้อมูล ณ ${thaiTime(now)} น.`, size: "xxs", color: C.muted, align: "center" },
-        ],
-      },
-      styles: { footer: { separator: true } },
     },
   };
 }
